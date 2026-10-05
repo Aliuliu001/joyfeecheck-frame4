@@ -19,6 +19,8 @@
 | N08 | Tab 6 "Chuyển tiền sai" báo double 1 nhà thành 2 dòng | Lọc nhóm trùng y hệt thành viên (lỡ tay tạo 2 lần) → chỉ tính 1 lần | ✅ đã code + test |
 | N09 | Copy Tab 6 sang Tổng hợp gộp 2 anh em chung 1 dòng | Tách mỗi bạn 1 dòng, ghi chú "Nhà ... — được cấp ..." | ✅ đã code |
 | N10 | Ô HP tự sửa ở Tổng hợp chưa rõ | Tô vàng nền + viền đỏ ô HP khác mặc định | ✅ đã code |
+| N11 | Bảng nợ: bạn học 2 lớp → 2 dòng cùng MSHS, nợ không cộng | `normalizeDebtRows`: gộp trùng MSHS (cộng nợ + gộp lớp), sort MSHS | ✅ đã code + test |
+| N12 | Copy Tab 6 sang Tổng hợp: HP chỉ lấy 1 lớp + sort lộn xộn | Lấy tổng HP 2 lớp (cộng dồn DS tổng); sort Tổng hợp theo MSHS | ✅ đã code |
 
 ### Quy ước đã chốt với Ngọc (đợt nợ cũ)
 

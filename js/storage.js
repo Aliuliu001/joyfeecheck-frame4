@@ -430,10 +430,33 @@ window.Storage = {
   // ========================
   // rows: [{mshs, fullName, className, amount}] — chỉ MSHS + amount bắt buộc
   // monthYear = tháng đối soát HIỆN TẠI đang dán nợ cho (VD đang làm T10 thì dán nợ T9)
+  // Gộp trùng MSHS (bạn học 2 lớp → 2 dòng cùng MSHS): cộng dồn số nợ, gộp tên lớp, sort theo MSHS
+  normalizeDebtRows: function(rows) {
+    const map = new Map();
+    for (const r of (rows || [])) {
+      const mshs = (r.mshs || '').toString().trim().toUpperCase();
+      const amt = Number(r.amount) || 0;
+      if (!mshs || amt <= 0) continue;
+      if (!map.has(mshs)) {
+        map.set(mshs, { mshs, fullName: r.fullName || '', className: r.className || '', amount: amt });
+      } else {
+        const cur = map.get(mshs);
+        cur.amount += amt;
+        if (!cur.fullName && r.fullName) cur.fullName = r.fullName;
+        // Gộp tên lớp (có thể 2 lớp cách nhau dấu phẩy), loại trùng
+        const clsSet = new Set(
+          String(cur.className || '').split(',').map(s => s.trim()).filter(Boolean)
+            .concat(String(r.className || '').split(',').map(s => s.trim()).filter(Boolean))
+        );
+        cur.className = [...clsSet].join(', ');
+      }
+    }
+    return [...map.values()].sort((a, b) => a.mshs.localeCompare(b.mshs));
+  },
   savePriorDebt: function(monthYear, rows) {
     return this._set(APP_CONFIG.STORAGE_KEYS.PRIOR_DEBT, {
       forMonth: monthYear || '',
-      rows: rows || [],
+      rows: this.normalizeDebtRows(rows),
       savedDate: new Date().toISOString()
     });
   },
@@ -461,7 +484,7 @@ window.Storage = {
   // closingMonth 'YYYY-MM' = tháng vừa đối soát xong (VD '2026-10')
   saveClosingDebt: function(closingMonth, rows) {
     const all = this._get(APP_CONFIG.STORAGE_KEYS.CLOSING_DEBT, {});
-    all[closingMonth] = { rows: rows || [], closedDate: new Date().toISOString() };
+    all[closingMonth] = { rows: this.normalizeDebtRows(rows), closedDate: new Date().toISOString() };
     return this._set(APP_CONFIG.STORAGE_KEYS.CLOSING_DEBT, all);
   },
   loadClosingDebt: function(closingMonth) {

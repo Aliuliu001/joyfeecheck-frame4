@@ -1473,7 +1473,18 @@ function appComponent() {
       const sourceData = state.accountingData[`tab${tabNum}`];
       if(!sourceData) return;
       const tagName = ['DS HĐ', 'DS CK VTB', 'Còn học/Quên CK', 'Stop', 'Tăng mới', 'CK sai', 'Tổng hợp'][tabNum - 1];
-      
+
+      // Tổng HP theo MSHS (bạn học 2 lớp → cộng dồn) để copy Tab 6 đúng số
+      const currMapTotalHP = new Map();
+      (state.students || []).forEach(s => {
+        const key = (s.mshs || '').toUpperCase();
+        if (!key) return;
+        currMapTotalHP.set(key, (currMapTotalHP.get(key) || 0) + (Number(s.hocPhi) || 0));
+      });
+      const allClassesOf = (key) => [...new Set(
+        (state.students || []).filter(x => (x.mshs || '').toUpperCase() === key).map(x => x.className).filter(Boolean)
+      )].join(', ');
+
       let added = 0;
       const pushOne = (baseRow, mshsOne, fullNameOne, classOne, hpOne, noteOne) => {
         if (state.accountingData.tab7.some(existing => existing.mshs === mshsOne)) return;
@@ -1500,10 +1511,14 @@ function appComponent() {
       sourceData.forEach(row => {
         if (!state.accountingData.tab7) state.accountingData.tab7 = [];
         // Tab 6 "Chuyển tiền sai": 1 dòng = cả nhà → tách mỗi bạn 1 dòng ở Tổng hợp
+        // Học phí lấy TỔNG 2 lớp (currMap đã cộng dồn) — không lấy số mặc định
         if (tabNum === 6 && row.memberDetails && row.memberDetails.length > 1) {
           row.memberDetails.forEach(m => {
-            const s = ((state.students || []).find(x => (x.mshs || '').toUpperCase() === (m.mshs || '').toUpperCase())) || {};
-            pushOne(row, m.mshs, m.fullName || s.fullName || m.mshs, s.className || '', Number(state.defaultFee) || 0,
+            const key = (m.mshs || '').toUpperCase();
+            const s = ((state.students || []).find(x => (x.mshs || '').toUpperCase() === key)) || {};
+            const hp = (currMapTotalHP && currMapTotalHP.get(key)) || Number(state.defaultFee) || 0;
+            pushOne(row, m.mshs, m.fullName || s.fullName || m.mshs, allClassesOf(key) || s.className || '',
+              hp,
               `Nhà ${(row.memberDetails || []).map(x => x.mshs).join(', ')} — được cấp ${Utils.formatCurrency(m.allocated || 0)}`);
           });
           return;
@@ -1513,15 +1528,10 @@ function appComponent() {
       // Force Alpine reactivity for arrays
       state.accountingData.tab7 = [...state.accountingData.tab7];
       state.accTab7FilterTags = [...state.accTab7FilterTags];
-      
+
       if (state.accountingData.tab7) {
-        state.accountingData.tab7.sort((a, b) => {
-          const aSpecial = (Number(a.hocPhi) !== Number(state.defaultFee)) || (a.classes && a.classes.length > 1);
-          const bSpecial = (Number(b.hocPhi) !== Number(state.defaultFee)) || (b.classes && b.classes.length > 1);
-          if (aSpecial && !bSpecial) return -1;
-          if (!aSpecial && bSpecial) return 1;
-          return (a.mshs || '').localeCompare(b.mshs || '');
-        });
+        // Sort theo MSHS — 2 lớp cùng MSHS nằm cạnh nhau
+        state.accountingData.tab7.sort((a, b) => (a.mshs || '').localeCompare(b.mshs || ''));
       }
 
       this.saveAccTab7();
