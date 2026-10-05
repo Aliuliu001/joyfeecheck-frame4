@@ -579,12 +579,15 @@ window.Exporter = {
       'MSHS': row.mshs,
       'Họ tên': row.fullName,
       'SĐT': row.phone,
+      'Nợ cũ': row.noCu || 0,
+      'Tổng phải thu': row.tongPhaiThu || row.soTienThieu || 0,
       'Số tiền thiếu': row.soTienThieu,
-      'Lớp': row.className
+      'Lớp': row.className,
+      'Lời nhắc': row.loiNhac || ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(dataRows);
-    this.autoFitColumns(ws, dataRows, ['STT', 'MSHS', 'Họ tên', 'SĐT', 'Số tiền thiếu', 'Lớp']);
+    this.autoFitColumns(ws, dataRows, ['STT', 'MSHS', 'Họ tên', 'SĐT', 'Nợ cũ', 'Tổng phải thu', 'Số tiền thiếu', 'Lớp', 'Lời nhắc']);
     
     XLSX.utils.book_append_sheet(wb, ws, 'NHẮC PHỤ HUYNH');
     
@@ -692,12 +695,14 @@ window.Exporter = {
       [APP_CONFIG.COMPANY_NAME],
       [`BÁO CÁO ĐỐI SOÁT - ${monthLabel}`],
       [],
-      ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Tổng HP', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Trạng thái', 'Ghi chú']
+      ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Tổng HP', 'Nợ cũ', 'Tổng phải thu', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Còn thiếu', 'Trạng thái', 'Ghi chú']
     ];
     (reportRows || []).forEach((row, idx) => {
       reportAoA.push([
         idx + 1, row.mshs, row.fullName, row.className, row.teacher, row.tongHocPhi,
+        row.noCu || 0, row.tongPhaiThu || row.tongHocPhi,
         row.chuyenKhoanVTB, row.tienMat, row.chuyenKhoanTPB, row.tongDaDong,
+        row.conThieu || 0,
  row.trangThai, row.ghiChu || ''
  ]);
  });
@@ -760,5 +765,55 @@ window.Exporter = {
     const filename = `ChotNo_${(closingMonth || '').replace(/-/g, '')}.xlsx`;
     this.triggerDownload(wb, filename);
     void label;
+  },
+
+  /**
+   * (D) Xuất file nợ JSON — tháng sau thả vào ô "Nợ chốt tháng trước" là xong.
+   * Cấu trúc: {app:'joyfeecheck', kind:'closing-debt', forMonth, rows:[{mshs,fullName,className,amount}]}
+   */
+  exportDebtJSON: function(rows, closingMonth) {
+    const payload = {
+      app: 'joyfeecheck', kind: 'closing-debt',
+      forMonth: (window.Storage && window.Storage.nextMonth ? window.Storage.nextMonth(closingMonth) : '') || '',
+      fromMonth: closingMonth || '',
+      exportDate: new Date().toISOString(),
+      rows: (rows || []).map(r => ({ mshs: r.mshs || '', fullName: r.fullName || '', className: r.className || '', amount: r.amount || 0 }))
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `NoDauKy_${(payload.forMonth || '').replace(/-/g, '')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  },
+
+  /**
+   * (E) Xuất mapping thống nhất 1 file JSON — web đọc khi local trống.
+   * Gồm: STK phụ + từ khóa + gia đình + gói + nợ (đầu kỳ + đã chốt).
+   */
+  exportUnifiedMappingJSON: function() {
+    const S = window.Storage;
+    const payload = {
+      app: 'joyfeecheck', kind: 'unified-mapping',
+      exportDate: new Date().toISOString(),
+      joy_stk_phu: S.loadSTKPhu(),
+      joy_keywords: S.loadKeywords(),
+      joy_family_groups: S.loadFamilyGroups(),
+      joy_packages: S.loadPackages(),
+      joy_prior_debt: S.loadPriorDebt ? S.loadPriorDebt() : null,
+      joy_closing_debt: (S._get ? S._get(APP_CONFIG.STORAGE_KEYS.CLOSING_DEBT, {}) : {})
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `joy_mappings_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   }
 };

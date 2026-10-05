@@ -216,6 +216,8 @@
                     @click.stop></textarea>
           <div style="display: flex; gap: 8px; margin-top: 8px;" @click.stop>
             <button class="btn btn-sm btn-primary" @click="savePriorDebt()">💾 Lưu nợ</button>
+            <button class="btn btn-sm btn-outline" @click="$refs.fileDebt.click()">📂 Thả file JSON</button>
+            <input type="file" x-ref="fileDebt" accept=".json" @change="importDebtFile($event)" @click.stop hidden>
             <button class="btn btn-sm btn-outline" @click="clearPriorDebtUI()" x-show="priorDebtRows && priorDebtRows.length > 0">🗑️ Xóa</button>
           </div>
           <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Tháng 10 dán 1 lần từ file chốt 30.09. Từ tháng 11 app tự nhớ sau khi bạn bấm "Chốt nợ". Chỉ MSHS + Số thiếu là bắt buộc.</p>
@@ -1125,6 +1127,7 @@
           <h3>Dữ liệu Mapping</h3>
           <div>
             <button class="btn btn-sm btn-primary" @click="exportMapping()">Xuất Mapping</button>
+            <button class="btn btn-sm btn-outline" @click="exportUnifiedMapping()" title="1 file JSON gồm STK + từ khóa + gia đình + gói + nợ — web đọc khi local trống">📦 Mapping thống nhất</button>
           </div>
         </div>
         
@@ -1404,6 +1407,10 @@
             <label class="btn btn-primary" style="cursor: pointer;">
               📂 Khôi phục từ file backup
               <input type="file" accept=".json" @change="importBackup($event)" style="display: none;">
+            </label>
+            <label class="btn btn-outline" style="cursor: pointer;" title="Nạp file mapping thống nhất (STK + từ khóa + gia đình + gói + nợ)">
+              📦 Nạp mapping thống nhất
+              <input type="file" accept=".json" @change="importUnifiedMapping($event)" style="display: none;">
             </label>
           </div>
           <p style="color: var(--text-secondary); font-size: 13px; margin-top: 8px;">📌 JSON = để khôi phục lại vào app. Excel = để mở coi/in/lưu trữ, không khôi phục ngược được.</p>

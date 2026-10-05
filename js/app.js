@@ -275,6 +275,19 @@ function appComponent() {
           }
         }
       } catch (e) { console.error('Prior debt load error:', e); }
+      // Mapping thống nhất: local trống → tự nạp shared_data/joy_mappings.json (khi chạy web tĩnh)
+      try {
+        const hasMapping = (window.Storage.loadSTKPhu() || []).length || (window.Storage.loadKeywords() || []).length;
+        if (!hasMapping && typeof fetch === 'function') {
+          fetch('shared_data/joy_mappings.json').then(r => r.ok ? r.json() : null).then(d => {
+            if (!d) return;
+            if (d.joy_stk_phu && d.joy_stk_phu.length) window.Storage.mergeSTKPhu(d.joy_stk_phu);
+            if (d.joy_keywords && d.joy_keywords.length) window.Storage.mergeKeywords(d.joy_keywords);
+            if (d.joy_family_groups && d.joy_family_groups.length) window.Storage.mergeFamilyGroups(d.joy_family_groups);
+            this.loadSettingsUI();
+          }).catch(() => {});
+        }
+      } catch (e) { /* chạy file:// không fetch được thì bỏ qua */ }
       // P1-3: nạp lại Tab7 Tổng hợp đã lưu từ lần trước
       try {
         const savedTab7 = window.Storage._get('joy_acc_tab7_rows', []);
@@ -574,6 +587,32 @@ function appComponent() {
       if (state.matchingDone) this.runMatching();
     },
 
+    // Thả file nợ JSON (NoDauKy_YYYYMM.json) — tháng sau thả vào là xong, khỏi dán tay
+    importDebtFile(event) {
+      const file = event.target ? event.target.files[0] : null;
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          const rows = data.rows || data.data || [];
+          if (!rows.length) { this.showToast('❌ File không có dòng nợ nào', 'error'); return; }
+          const clean = rows.filter(r => r.mshs && (Number(r.amount) || 0) > 0)
+            .map(r => ({ mshs: String(r.mshs).toUpperCase(), fullName: r.fullName || '', className: r.className || '', amount: Number(r.amount) || 0 }));
+          if (!clean.length) { this.showToast('❌ Không đọc được dòng nào (cần MSHS + Số thiếu)', 'error'); return; }
+          const state = this.$store.appState;
+          const forMonth = data.forMonth || state.monthYear || '';
+          window.Storage.savePriorDebt(forMonth, clean);
+          this.priorDebtRows = clean;
+          this.priorDebtText = clean.map(r => [r.mshs, r.fullName, r.className, r.amount].join('\t')).join('\n');
+          this.showToast(`✅ Đã nạp nợ ${clean.length} bạn (từ T${data.fromMonth || 'trước'})`, 'success');
+          if (state.matchingDone) this.runMatching();
+        } catch (err) { this.showToast('❌ File lỗi: ' + err.message, 'error'); }
+      };
+      reader.readAsText(file);
+      event.target.value = null;
+    },
+
     // Bước 3: Chốt nợ cuối tháng — lấy ai còn thiếu làm nợ đầu kỳ tháng sau + xuất file
     closeDebtUI() {
       const state = this.$store.appState;
@@ -592,7 +631,14 @@ function appComponent() {
       const nm = window.Storage.nextMonth ? window.Storage.nextMonth(month) : '';
       if (nm) window.Storage.savePriorDebt(nm, all);
       window.Exporter.exportClosingDebt(all, month);
-      this.showToast(all.length ? `✅ Đã chốt nợ T${month} (${all.length} bạn) → tự nhớ cho tháng ${nm}` : `✅ Tháng ${month} không ai nợ`, 'success');
+      window.Exporter.exportDebtJSON(all, month);
+      this.showToast(all.length ? `✅ Đã chốt nợ T${month} (${all.length} bạn) → Excel + JSON, tự nhớ cho tháng ${nm}` : `✅ Tháng ${month} không ai nợ`, 'success');
+    },
+
+    // Xuất mapping thống nhất (1 JSON cho web + vẫn giữ Excel để Ngọc đọc)
+    exportUnifiedMapping() {
+      window.Exporter.exportUnifiedMappingJSON();
+      this.showToast('✅ Đã xuất mapping thống nhất (STK + từ khóa + gia đình + gói + nợ)', 'success');
     },
 
     // Gợi ý gói 2 tháng: không nợ cũ, đóng gấp 2 lần HP trở lên (VD 1.6tr cho HP 800k)
@@ -1628,6 +1674,40 @@ function appComponent() {
         XLSX.writeFile(wb, `joy_backup_${new Date().toISOString().split('T')[0]}.xlsx`);
         this.showToast('✅ Đã tải backup Excel (để coi/in/lưu trữ)', 'success');
       } catch (err) { this.showToast('❌ Lỗi xuất Excel: ' + err.message, 'error'); }
+    },
+
+    // Nạp mapping thống nhất (STK + từ khóa + gia đình + gói + nợ) — mất local thả 1 file là sống lại
+    importUnifiedMapping(event) {
+      const file = event.target ? event.target.files[0] : null;
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          let c1 = 0, c2 = 0, c3 = 0;
+          if (data.joy_stk_phu && data.joy_stk_phu.length) c1 = window.Storage.mergeSTKPhu(data.joy_stk_phu);
+          if (data.joy_keywords && data.joy_keywords.length) c2 = window.Storage.mergeKeywords(data.joy_keywords);
+          if (data.joy_family_groups && data.joy_family_groups.length) c3 = window.Storage.mergeFamilyGroups(data.joy_family_groups);
+          if (data.joy_packages && data.joy_packages.length) {
+            const cur = window.Storage.loadPackages();
+            const ids = new Set(cur.map(x => x && x.packageId));
+            let added = 0;
+            data.joy_packages.forEach(x => { if (x && !ids.has(x.packageId)) { cur.push(x); added++; } });
+            if (added) window.Storage.savePackages(cur);
+          }
+          if (data.joy_prior_debt && data.joy_prior_debt.rows) {
+            window.Storage.savePriorDebt(data.joy_prior_debt.forMonth || data.joy_prior_debt.monthYear || '', data.joy_prior_debt.rows);
+          }
+          if (data.joy_closing_debt && typeof data.joy_closing_debt === 'object') {
+            Object.keys(data.joy_closing_debt).forEach(m => window.Storage.saveClosingDebt(m, data.joy_closing_debt[m].rows || []));
+          }
+          this.loadSettingsUI();
+          this.runMatching();
+          this.showToast(`✅ Đã nạp mapping: +${c1} STK, +${c2} từ khóa, +${c3} gia đình (+ gói, nợ)`, 'success');
+        } catch (err) { this.showToast('❌ File lỗi: ' + err.message, 'error'); }
+      };
+      reader.readAsText(file);
+      event.target.value = null;
     },
 
     importBackup(event) {

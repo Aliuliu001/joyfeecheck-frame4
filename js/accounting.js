@@ -295,6 +295,17 @@ window.Accounting = {
   generateNhacPH(reportRows) {
     return reportRows
       .filter(r => r.trangThai === APP_CONFIG.STATUS.UNPAID || r.trangThai === APP_CONFIG.STATUS.PARTIAL)
-      .map(r => ({ mshs: r.mshs, fullName: r.fullName, phone: r.phone || '', soTienThieu: r.soTienThieu || 0, className: r.className || '' }));
+      .map(r => ({
+        mshs: r.mshs, fullName: r.fullName, phone: r.phone || '',
+        soTienThieu: (r.conThieu != null ? r.conThieu : r.soTienThieu) || 0,
+        noCu: r.noCu || 0, tongPhaiThu: r.tongPhaiThu || r.tongHocPhi || 0,
+        className: r.className || '',
+        // Câu nhắc sẵn để gọi/zalo PH: tách rõ nợ cũ + HP tháng này
+        loiNhac: (r.noCu > 0)
+          ? ((r.noCuConLai === 0)
+            ? `Đã hết nợ cũ ${Utils.formatCurrency(r.noCu)}, HP tháng này còn thiếu ${Utils.formatCurrency((r.conThieu != null ? r.conThieu : r.soTienThieu) || 0)}`
+            : `Nợ cũ còn ${Utils.formatCurrency(r.noCuConLai != null ? r.noCuConLai : r.noCu)} + HP tháng này ${Utils.formatCurrency(r.tongHocPhi)} = còn thiếu ${Utils.formatCurrency((r.conThieu != null ? r.conThieu : r.soTienThieu) || 0)}`)
+          : `HP tháng này còn thiếu ${Utils.formatCurrency((r.conThieu != null ? r.conThieu : r.soTienThieu) || 0)}`
+      }));
   }
 };
