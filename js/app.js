@@ -107,6 +107,8 @@ function appComponent() {
     // Nợ cũ tháng trước (Bước 1): dán 4 cột MSHS|Họ tên|Lớp|Số thiếu
     priorDebtText: '',
     priorDebtRows: [],
+    debtTicked: [], // MSHS đã tick trong bảng nợ
+    debtDirty: false, // có sửa số chưa lưu
     
     // Accounting UI
     activeAccTab: 'acc-tab1',
@@ -262,6 +264,7 @@ function appComponent() {
         const savedDebt = window.Storage.loadPriorDebt ? window.Storage.loadPriorDebt() : null;
         if (savedDebt && savedDebt.rows && savedDebt.rows.length) {
           this.priorDebtRows = savedDebt.rows;
+          this.debtTicked = []; this.debtDirty = false;
           this.priorDebtText = savedDebt.rows.map(r => [r.mshs, r.fullName || '', r.className || '', r.amount].join('\t')).join('\n');
         }
         // Sang tháng mới mà chưa có nợ → tự lấy file chốt tháng trước (khỏi dán tay)
@@ -272,6 +275,7 @@ function appComponent() {
           if (closed && closed.rows && closed.rows.length) {
             window.Storage.savePriorDebt(cur, closed.rows);
             this.priorDebtRows = closed.rows;
+            this.debtTicked = []; this.debtDirty = false;
             this.priorDebtText = closed.rows.map(r => [r.mshs, r.fullName || '', r.className || '', r.amount].join('\t')).join('\n');
             setTimeout(() => this.showToast(`📌 Đã tự lấy nợ chốt T${pm} (${closed.rows.length} bạn)`, 'success'), 800);
           }
@@ -416,6 +420,7 @@ function appComponent() {
               }
               window.Storage.savePriorDebt(state.monthYear, debtRows);
               this.priorDebtRows = debtRows;
+              this.debtTicked = []; this.debtDirty = false;
               this.priorDebtText = debtRows.map(r => [r.mshs, r.fullName || '', r.className || '', r.amount].join('\t')).join('\n');
               if (state.matchingDone) this.runMatching();
             } else {
@@ -602,6 +607,7 @@ function appComponent() {
       const state = this.$store.appState;
       window.Storage.savePriorDebt(state.monthYear, rows);
       this.priorDebtRows = rows;
+      this.debtTicked = []; this.debtDirty = false;
       this.showToast(`✅ Đã lưu nợ ${rows.length} bạn`, 'success');
       if (state.matchingDone) this.runMatching();
     },
@@ -618,6 +624,40 @@ function appComponent() {
     removePriorDebtRow(mshs) {
       const key = (mshs || '').toUpperCase();
       this.priorDebtRows = (this.priorDebtRows || []).filter(r => (r.mshs || '').toUpperCase() !== key);
+      this.debtTicked = (this.debtTicked || []).filter(m => (m || '').toUpperCase() !== key);
+      this.persistDebtRows(`✅ Đã gỡ nợ ${mshs} (đóng sau chốt)`);
+    },
+    // Bảng nợ gọn: tick 1 / tick all / sửa số / gỡ hàng loạt / lưu 1 lần
+    toggleDebtOne(mshs, on) {
+      const key = (mshs || '').toUpperCase();
+      this.debtTicked = this.debtTicked || [];
+      if (on && !this.debtTicked.some(m => (m || '').toUpperCase() === key)) this.debtTicked.push(mshs);
+      if (!on) this.debtTicked = this.debtTicked.filter(m => (m || '').toUpperCase() !== key);
+    },
+    toggleDebtAll(on) {
+      this.debtTicked = on ? (this.priorDebtRows || []).map(r => r.mshs) : [];
+    },
+    removeTickedDebt() {
+      const ticked = new Set((this.debtTicked || []).map(m => (m || '').toUpperCase()));
+      if (!ticked.size) return;
+      this.priorDebtRows = (this.priorDebtRows || []).filter(r => !ticked.has((r.mshs || '').toUpperCase()));
+      const n = ticked.size;
+      this.debtTicked = [];
+      this.persistDebtRows(`✅ Đã gỡ ${n} bạn đã tick`);
+    },
+    editDebtAmount(mshs, val) {
+      const n = window.Utils ? window.Utils.parseNumber(val) : Number(String(val).replace(/[^0-9]/g, '')) || 0;
+      const row = (this.priorDebtRows || []).find(r => (r.mshs || '').toUpperCase() === (mshs || '').toUpperCase());
+      if (!row) return;
+      if (n <= 0) { this.showToast('⚠️ Số nợ phải > 0 (muốn xóa thì bấm ❌)', 'warning'); return; }
+      row.amount = n;
+      this.debtDirty = true;
+    },
+    saveDebtTable() {
+      this.debtDirty = false;
+      this.persistDebtRows(`✅ Đã lưu bảng nợ (${(this.priorDebtRows || []).length} bạn)`);
+    },
+    persistDebtRows(msg) {
       const state = this.$store.appState;
       if (!this.priorDebtRows.length) {
         window.Storage.clearPriorDebt && window.Storage.clearPriorDebt();
@@ -627,7 +667,7 @@ function appComponent() {
         window.Storage.savePriorDebt(state.monthYear, this.priorDebtRows);
         this.priorDebtText = this.priorDebtRows.map(r => [r.mshs, r.fullName || '', r.className || '', r.amount].join('\t')).join('\n');
       }
-      this.showToast(`✅ Đã gỡ nợ ${mshs} (đóng sau chốt)`, 'success');
+      if (msg) this.showToast(msg, 'success');
       if (state.matchingDone) this.runMatching();
     },
 
