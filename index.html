@@ -1,0 +1,2002 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Joy Fee Check - Đối soát học phí</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body x-data="appComponent()" x-cloak @keydown.escape="showModal = false">
+
+  <!-- Header -->
+  <header id="app-header">
+    <div class="header-logo">
+      <div class="logo-icon">J</div>
+      <h1>Joy Fee Check</h1>
+      <span class="version-badge">v2.0 Alpine</span>
+    </div>
+    <div class="header-actions">
+      <span x-text="new Date().toLocaleDateString('vi-VN', { year: 'numeric', month: 'long', day: 'numeric' })"></span>
+    </div>
+  </header>
+
+  <!-- Navigation / Tab Bar -->
+  <nav id="tab-bar">
+    <button class="tab-btn" 
+            :class="{ 'active': $store.appState.activeTab === 'import-tab' }"
+            @click="switchTab('import-tab')">
+      <span class="tab-icon">📥</span> Import Dữ Liệu
+    </button>
+    <button class="tab-btn" 
+            :class="{ 'active': $store.appState.activeTab === 'exception-tab' }"
+            @click="switchTab('exception-tab')">
+      <span class="tab-icon">⚠️</span> Ngoại lệ
+      <span class="counter-badge" 
+            x-show="$store.appState.exceptionCount > 0" 
+            x-text="$store.appState.exceptionCount"></span>
+    </button>
+    <button class="tab-btn" 
+              :class="{ 'active': $store.appState.activeTab === 'cashflow-tab' }"
+              @click="switchTab('cashflow-tab')">
+        <span class="tab-icon">💰</span> Dòng tiền
+      </button>
+      <button class="tab-btn"
+              :class="{ 'active': $store.appState.activeTab === 'report-tab' }"
+              @click="switchTab('report-tab')">
+        <span class="tab-icon">📊</span> Báo cáo Đối soát
+      </button>
+    <button class="tab-btn" 
+            :class="{ 'active': $store.appState.activeTab === 'accounting-tab' }"
+            @click="switchTab('accounting-tab')">
+      <span class="tab-icon">📋</span> Báo cáo kế toán
+    </button>
+    <button class="tab-btn" 
+            :class="{ 'active': $store.appState.activeTab === 'settings-tab' }"
+            @click="switchTab('settings-tab')">
+      <span class="tab-icon">⚙️</span> Cài đặt
+    </button>
+    <button class="tab-btn" 
+            :class="{ 'active': $store.appState.activeTab === 'guide-tab' }"
+            @click="switchTab('guide-tab')">
+      <span class="tab-icon">📖</span> Hướng dẫn
+    </button>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main id="main-content">
+    
+    <!-- TAB 1: Import -->
+    <section id="import-tab" 
+             class="tab-content" 
+             x-show="$store.appState.activeTab === 'import-tab'"
+             x-transition>
+      <div class="settings-panel card glass-card">
+        <h3>Cài đặt đối soát</h3>
+        <div class="settings-form">
+          <div class="form-group">
+            <label for="month-selector">Tháng đối soát</label>
+            <input type="month" 
+                   id="month-selector"
+                   x-model="$store.appState.monthYear">
+          </div>
+          <div class="form-group">
+            <label for="default-fee">Học phí mặc định (VNĐ)</label>
+            <input type="number" 
+                   id="default-fee"
+                   x-model.number="$store.appState.defaultFee">
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-3col">
+        <!-- DS Học sinh -->
+        <div class="drop-zone card glass-card" 
+             :class="{ 'success': $store.appState.importStatus.dsHocSinh, 'drag-over': dsHocSinhDragging }"
+             @click="$refs.fileDs.click()"
+             @dragover.prevent="dsHocSinhDragging = true"
+             @dragleave="dsHocSinhDragging = false"
+             @drop.prevent="dsHocSinhDragging = false; handleFileDrop($event, 'dsHocSinh')">
+          <div class="drop-icon">👥</div>
+          <h4>📋 DS Học sinh tổng (Google Trang tính)</h4>
+          <p class="status-text" :class="$store.appState.importStatus.dsHocSinh ? 'success' : 'warning'">
+            <span x-show="!$store.appState.importStatus.dsHocSinh">Chưa import</span>
+            <span x-show="$store.appState.importStatus.dsHocSinh">✅ Đã import (<span x-text="$store.appState.students.length"></span> HS)</span>
+          </p>
+          <input type="file" 
+                 x-ref="fileDs"
+                 accept=".xlsx, .xls, .csv" 
+                 @change="handleFileImport($event, 'dsHocSinh')"
+                 hidden>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Danh sách master học sinh. Nguồn gốc dữ liệu, cập nhật liên tục.</p>
+        </div>
+        
+        <!-- VietinBank -->
+        <div class="drop-zone card glass-card"
+             :class="{ 'success': $store.appState.importStatus.vietinBank, 'drag-over': vtbDragging }"
+             @click="$refs.fileVtb.click()"
+             @dragover.prevent="vtbDragging = true"
+             @dragleave="vtbDragging = false"
+             @drop.prevent="vtbDragging = false; handleFileDrop($event, 'vietinBank')">
+          <div class="drop-icon">🏦</div>
+          <h4>Sao kê VietinBank</h4>
+          <p class="status-text" :class="$store.appState.importStatus.vietinBank ? 'success' : 'warning'">
+            <span x-show="!$store.appState.importStatus.vietinBank">Chưa import</span>
+            <span x-show="$store.appState.importStatus.vietinBank">✅ Đã import (<span x-text="$store.appState.vtbTransactions.length"></span> GD)</span>
+          </p>
+          <input type="file" 
+                 x-ref="fileVtb"
+                 accept=".xlsx, .xls, .csv" 
+                 @change="handleFileImport($event, 'vietinBank')"
+                 hidden>
+        </div>
+        
+        <!-- TPBank -->
+        <div class="drop-zone card glass-card"
+             :class="{ 'success': $store.appState.importStatus.tpBank, 'drag-over': tpbDragging }"
+             @click="$refs.fileTpb.click()"
+             @dragover.prevent="tpbDragging = true"
+             @dragleave="tpbDragging = false"
+             @drop.prevent="tpbDragging = false; handleFileDrop($event, 'tpBank')">
+          <div class="drop-icon">🏢</div>
+          <h4>Sao kê TPBank (từ ABBYY)</h4>
+          <p class="status-text" :class="$store.appState.importStatus.tpBank ? 'success' : 'warning'">
+            <span x-show="!$store.appState.importStatus.tpBank">Chưa import</span>
+            <span x-show="$store.appState.importStatus.tpBank">✅ Đã import (<span x-text="$store.appState.tpbTransactions.length"></span> GD)</span>
+          </p>
+          <input type="file" 
+                 x-ref="fileTpb"
+                 accept=".xlsx, .xls, .csv" 
+                 @change="handleFileImport($event, 'tpBank')"
+                 hidden>
+        </div>
+        
+        <!-- Tiền mặt -->
+        <div class="drop-zone card glass-card"
+             :class="{ 'success': $store.appState.importStatus.tienMat, 'drag-over': cashDragging }"
+             @click="$refs.fileCash.click()"
+             @dragover.prevent="cashDragging = true"
+             @dragleave="cashDragging = false"
+             @drop.prevent="cashDragging = false; handleFileDrop($event, 'tienMat')">
+          <div class="drop-icon">💵</div>
+          <h4>Tiền mặt</h4>
+          <p class="status-text" :class="$store.appState.importStatus.tienMat ? 'success' : 'warning'">
+            <span x-show="!$store.appState.importStatus.tienMat">Chưa import</span>
+            <span x-show="$store.appState.importStatus.tienMat">✅ Đã import (<span x-text="$store.appState.cashPayments.length"></span> dòng)</span>
+          </p>
+          <input type="file" 
+                 x-ref="fileCash"
+                 accept=".xlsx, .xls, .csv" 
+                 @change="handleFileImport($event, 'tienMat')"
+                 hidden>
+        </div>
+
+        <!-- File KT tháng trước -->
+        <div class="drop-zone card glass-card" 
+             :class="{ 'success': $store.appState.importStatus.prevInvoice, 'drag-over': prevDragging }"
+             @click="$refs.filePrev.click()"
+             @dragover.prevent="prevDragging = true"
+             @dragleave="prevDragging = false"
+             @drop.prevent="prevDragging = false; handleFileDrop($event, 'prevInvoice')"
+             style="border-color: rgba(255,193,7,0.3);">
+          <div class="drop-icon">📄</div>
+          <h4>📄 File Kế toán tháng TRƯỚC</h4>
+          <p class="status-text" :class="$store.appState.importStatus.prevInvoice ? 'success' : 'warning'">
+            <span x-show="!$store.appState.importStatus.prevInvoice">Chưa import (tùy chọn)</span>
+            <span x-show="$store.appState.importStatus.prevInvoice">✅ Đã import (<span x-text="$store.appState.prevInvoiceStudents.length"></span> HS)</span>
+          </p>
+          <input type="file" 
+                 x-ref="filePrev"
+                 accept=".xlsx, .xls, .csv" 
+                 @change="handleFileImport($event, 'prevInvoice')"
+                 hidden>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">File Excel Kế toán (2 sheet: DS Thực tế + DS Ghi HĐ). Dùng để so sánh: ai tăng/giảm so với tháng này.</p>
+        </div>
+      </div>
+
+      <div class="action-panel">
+        <button class="btn btn-primary btn-large" 
+                @click="startMatching()"
+                :disabled="!canStartMatching">
+          Bắt đầu đối soát
+        </button>
+        <p class="help-text">Yêu cầu DS Học Sinh và ít nhất 1 nguồn thu để bắt đầu</p>
+      </div>
+    </section>
+
+
+    <!-- TAB 2: Ngoại lệ -->
+    <section id="exception-tab" 
+             class="tab-content"
+             x-show="$store.appState.activeTab === 'exception-tab'"
+             x-transition>
+      <div class="exception-section card glass-card">
+        <div class="section-header">
+          <h3>STK mới chưa map 
+            <span class="counter-badge" 
+                  x-show="$store.appState.vtbUnmatched?.length > 0" 
+                  x-text="$store.appState.vtbUnmatched?.length || 0"></span>
+          </h3>
+          <button class="btn btn-sm btn-outline" x-show="lastIgnored" @click="undoIgnore()">↩️ Hoàn tác bỏ qua</button>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Ngày GD</th>
+                <th>Nội dung</th>
+                <th>STK</th>
+                <th>Tên TK</th>
+                <th>Số tiền</th>
+                <th>Gợi ý</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-if="!$store.appState.vtbUnmatched || $store.appState.vtbUnmatched.length === 0">
+                <tr>
+                  <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 24px;">✅ Không có STK mới — tất cả đã khớp!</td>
+                </tr>
+              </template>
+              <template x-for="(tx, idx) in ($store.appState.vtbUnmatched || [])" :key="'vtb-'+idx">
+                <tr>
+                  <td x-text="$formatDate(tx.date)"></td>
+                  <td class="wrap" style="max-width: 250px;" x-text="tx.description"></td>
+                  <td style="font-family: monospace; font-weight: 600;" x-text="tx.stkDoiUng || tx.debitAccount"></td>
+                  <td x-text="tx.tenTKDoiUng || tx.debitAccountName"></td>
+                  <td style="text-align: center; font-weight: 700; white-space: nowrap;" x-text="$formatCurrency(tx.credit || tx.amount)"></td>
+                  <td><span class="status-badge badge-yellow" x-text="getVtbSuggestion(tx)"></span></td>
+                  <td style="white-space: nowrap;">
+                    <button x-show="tx.assignedMSHS" class="btn btn-sm btn-outline" @click="unassignTransaction(tx.id)" title="Gỡ gán MSHS" style="color: var(--danger-color); border-color: var(--danger-color); padding: 4px 8px; font-size: 12px; margin-bottom: 4px; display: block; width: 100%;">❌ Gỡ</button>
+                    <button class="btn btn-sm btn-primary" @click="openAssignVtb(tx)">Gán MSHS</button>
+                    <button class="btn btn-sm btn-outline" @click="ignoreTx(tx, 'vtb')" title="Bỏ qua GD không phải học phí">Bỏ qua</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="exception-section card glass-card mt-4">
+        <div class="section-header">
+          <h3>GD TPBank chưa xác định 
+            <span class="counter-badge" 
+                  x-show="$store.appState.tpbUnmatched?.length > 0" 
+                  x-text="$store.appState.tpbUnmatched?.length || 0"></span>
+          </h3>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Ngày GD</th>
+                <th>Nội dung</th>
+                <th>Số tiền</th>
+                <th>Gợi ý MSHS</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-if="!$store.appState.tpbUnmatched || $store.appState.tpbUnmatched.length === 0">
+                <tr>
+                  <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 24px;">✅ Không có GD chưa xác định!</td>
+                </tr>
+              </template>
+              <template x-for="(tx, idx) in ($store.appState.tpbUnmatched || [])" :key="'tpb-'+idx">
+                <tr>
+                  <td x-text="$formatDate(tx.date || tx.transactionDate)"></td>
+                  <td class="wrap" style="max-width: 300px;" x-text="tx.description || tx.explanation"></td>
+                  <td class="col-amount" x-text="$formatCurrency(tx.amount || tx.credit)"></td>
+                  <td><span class="status-badge badge-yellow" x-text="getTpbSuggestion(tx)"></span></td>
+                  <td style="white-space: nowrap;">
+                    <button x-show="tx.assignedMSHS" class="btn btn-sm btn-outline" @click="unassignTransaction(tx.id)" title="Gỡ gán MSHS" style="color: var(--danger-color); border-color: var(--danger-color); padding: 4px 8px; font-size: 12px; margin-bottom: 4px; display: block; width: 100%;">❌ Gỡ</button>
+                    <button class="btn btn-sm btn-primary" @click="openAssignTpb(tx)">Gán MSHS</button>
+                    <button class="btn btn-sm btn-outline" @click="ignoreTx(tx, 'tpb')" title="Bỏ qua GD không phải học phí">Bỏ qua</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- TAB 3: Báo cáo Đối soát -->
+    <section id="report-tab" 
+             class="tab-content report-fullwidth"
+             x-show="$store.appState.activeTab === 'report-tab'"
+             x-transition>
+      <div x-show="($store.appState.packageAlerts || []).length > 0"
+           style="background: #FFF8E1; border: 2px solid #FFC107; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px;">
+        <div style="font-weight: 700; margin-bottom: 6px;">⏰ Gói hết hạn — tháng sau thu HP bình thường:</div>
+        <template x-for="a in ($store.appState.packageAlerts || [])" :key="a.pkg.packageId">
+          <div style="font-size: 14px; margin-bottom: 4px;">
+            • <strong x-text="a.pkg.packageName || a.pkg.groupName"></strong>
+            (<span x-text="(a.pkg.members || []).join(', ')"></span>)
+            — <span x-text="a.msg"></span>
+          </div>
+        </template>
+      </div>
+      <div class="summary-cards">
+        <div class="summary-card card">
+          <div class="card-top">
+            <span class="card-icon">👥</span>
+            <span class="card-value" x-text="reportStats.totalStudents || 0"></span>
+          </div>
+          <div class="card-label">Tổng HS</div>
+        </div>
+        <div class="summary-card card success">
+          <div class="card-top">
+            <span class="card-icon">✅</span>
+            <span class="card-value" x-text="reportStats.paidCount || 0"></span>
+          </div>
+          <div class="card-label">Đã đóng</div>
+        </div>
+        <div class="summary-card card error">
+          <div class="card-top">
+            <span class="card-icon">❌</span>
+            <span class="card-value" x-text="reportStats.unpaidCount || 0"></span>
+          </div>
+          <div class="card-label">Chưa đóng</div>
+        </div>
+        <div class="summary-card card warning">
+          <div class="card-top">
+            <span class="card-icon">⚠️</span>
+            <span class="card-value" x-text="reportStats.partialCount || 0"></span>
+          </div>
+          <div class="card-label">Đóng thiếu</div>
+        </div>
+        <div class="summary-card card info">
+          <div class="card-top">
+            <span class="card-icon">🔵</span>
+            <span class="card-value" x-text="reportStats.overpaidCount || 0"></span>
+          </div>
+          <div class="card-label">Đóng dư</div>
+        </div>
+        <div class="summary-card card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+          <div class="card-top">
+            <span class="card-icon">📦</span>
+            <span class="card-value" style="color: white;" x-text="reportStats.packageCount || 0"></span>
+          </div>
+          <div class="card-label" style="color: white;">Đóng gói</div>
+        </div>
+        <div class="summary-card card purple">
+          <div class="card-top">
+            <span class="card-icon">💰</span>
+            <span class="card-value" x-text="$formatCurrency(reportStats.totalMoney || 0)"></span>
+          </div>
+          <div class="card-label">Tổng thu</div>
+        </div>
+      </div>
+
+      <div class="filters-bar card glass-card">
+        <div class="filter-group">
+          <select x-model="filters.status" @change="applyFilters()">
+            <option value="all">Tất cả trạng thái</option>
+            <option value="Đã đóng">Đã đóng</option>
+            <option value="Chưa đóng">Chưa đóng</option>
+            <option value="Đóng thiếu">Đóng thiếu</option>
+            <option value="Đóng dư">Đóng dư</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <select x-model="filters.className" @change="applyFilters()">
+            <option value="all">Tất cả lớp</option>
+            <template x-for="c in (reportClassOptions || [])" :key="c">
+              <option :value="c" x-text="c"></option>
+            </template>
+          </select>
+        </div>
+        <div class="filter-group">
+          <select x-model="filters.teacher" @change="applyFilters()">
+            <option value="all">Tất cả GV</option>
+            <template x-for="t in (reportTeacherOptions || [])" :key="t">
+              <option :value="t" x-text="t"></option>
+            </template>
+          </select>
+        </div>
+        <div class="filter-group search-group">
+          <input type="text" 
+                 x-model="filters.searchText" 
+                 @input="applyFilters()"
+                 placeholder="Tìm MSHS, Tên...">
+        </div>
+        <div class="filter-group">
+          <button class="btn btn-sm btn-outline" @click="runMatching()">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <div class="table-container card glass-card mt-4" style="padding: 12px;">
+        <table style="font-size: 14px;">
+          <thead>
+            <tr>
+              <th style="width:36px; padding: 10px 8px;">STT</th>
+              <th style="padding: 10px 8px;">MSHS</th>
+              <th style="padding: 10px 8px;">Họ tên</th>
+              <th style="padding: 10px 8px;">Lớp</th>
+              <th style="padding: 10px 8px;">GV</th>
+              <th style="padding: 10px 8px;">Tổng HP</th>
+              <th style="padding: 10px 8px;">VietinBank</th>
+              <th style="padding: 10px 8px;">Tiền mặt</th>
+              <th style="padding: 10px 8px;">TPBank</th>
+              <th style="padding: 10px 8px;">Tổng đã đóng</th>
+              <th style="padding: 10px 8px;">Nguồn CK</th>
+              <th style="padding: 10px 8px;">Trạng thái</th>
+              <th style="padding: 10px 8px; min-width: 180px;">Ghi chú</th>
+              <th style="padding: 10px 8px; width: 90px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-if="!$store.appState.matchingDone">
+              <tr>
+                <td colspan="13" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                  Chưa có dữ liệu đối soát. Vui lòng import dữ liệu và bắt đầu đối soát.
+                </td>
+              </tr>
+            </template>
+            <template x-if="$store.appState.matchingDone && filteredReportRows.length === 0">
+              <tr>
+                <td colspan="13" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                  Không tìm thấy kết quả phù hợp với bộ lọc.
+                </td>
+              </tr>
+            </template>
+            <template x-for="(row, index) in filteredReportRows" :key="row.mshs + '-' + index">
+              <tr>
+                <td x-text="index + 1"></td>
+                <td><span class="status-badge badge-default" style="font-size: 13px;" x-text="row.mshs"></span></td>
+                <td style="font-weight: 600;" x-text="row.fullName"></td>
+                <td x-text="row.className"></td>
+                <td x-text="row.teacher"></td>
+                <td class="col-amount" x-text="$formatCurrency(row.tongHocPhi)"></td>
+                <td class="col-amount" x-text="$formatCurrency(row.chuyenKhoanVTB)"></td>
+                <td class="col-amount" x-text="$formatCurrency(row.tienMat)"></td>
+                <td class="col-amount" x-text="$formatCurrency(row.chuyenKhoanTPB)"></td>
+                <td class="col-amount" style="font-weight: 700; color: var(--primary);" x-text="$formatCurrency(row.tongDaDong)"></td>
+                <td @click="showNguonCKDetail(row)" style="cursor: pointer;" title="Click để xem chi tiết" x-html="getNguonCK(row)"></td>
+                <td>
+                  <span class="status-badge" :class="getStatusBadge(row.trangThai)" x-text="row.trangThai"></span>
+                </td>
+                <td class="wrap" x-text="row.ghiChu" style="font-size: 0.85rem; color: var(--text-secondary); max-width: 250px;"></td>
+                <td style="white-space: nowrap;">
+                  <button class="btn btn-xs btn-outline" title="Thêm gia đình" @click="addFamilyGroupForStudent(row.mshs, row.fullName)">➕</button>
+                  <button class="btn btn-xs btn-outline" title="Ghi chú lý do đóng thiếu / ưu đãi" @click="openMissingNote(row)">📝</button>
+                  <button class="btn btn-xs btn-outline" title="Tạm ngưng" @click="quickSuspend(row.mshs, row.fullName)">⏸️</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="action-panel mt-4" style="flex-direction: row; justify-content: center; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-primary" @click="exportReport()">
+          📥 Xuất Excel Báo cáo
+        </button>
+        <button class="btn btn-outline" @click="exportNhacPH()">
+          📣 Xuất Nhắc PH
+        </button>
+        <button class="btn btn-outline" @click="exportSTKPhu()">
+          🏦 Xuất STK phụ
+        </button>
+        <button class="btn btn-secondary" @click="exportBackup()">
+          💾 Backup
+        </button>
+      </div>
+
+      <div class="mt-4">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 style="margin: 0;">⏸️ Học sinh tạm ngưng tháng này <span class="count-badge" x-text="(suspendedData || []).length"></span></h3>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm btn-warning" @click="suspendUnpaidStudents()" title="Xem danh sách HS chưa đóng và chọn ai cần tạm ngưng">📋 DS Chưa đóng → Tạm ngưng</button>
+            <button class="btn btn-sm btn-primary" @click="suspendStudentUI()" title="Tìm MSHS và tạm ngưng thủ công">➕ Thêm thủ công</button>
+          </div>
+        </div>
+        <p class="text-sm text-secondary mb-2">HS tạm ngưng sẽ KHÔNG hiện trong báo cáo chính và KHÔNG báo "Chưa đóng".</p>
+        <div class="table-container card glass-card">
+          <table>
+            <thead>
+              <tr>
+                <th>MSHS</th>
+                <th>Họ tên</th>
+                <th>Lớp tạm ngưng</th>
+                <th>Tháng</th>
+                <th>Ghi chú</th>
+                <th style="width: 100px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-if="!(suspendedData || []).length">
+                <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">Không có HS tạm ngưng tháng này</td></tr>
+              </template>
+              <template x-for="s in (suspendedData || [])" :key="s.id">
+                <tr>
+                  <td x-text="s.mshs"></td>
+                  <td x-text="s.studentName"></td>
+                  <td x-text="s.className"></td>
+                  <td x-text="s.monthYear"></td>
+                  <td class="wrap" x-text="s.note"></td>
+                  <td><button class="btn btn-sm btn-primary" @click="unsuspendStudent(s.id)">Bỏ ngưng</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- TAB 4: Báo cáo Kế toán -->
+    <section id="accounting-tab" 
+             class="tab-content report-fullwidth"
+             x-show="$store.appState.activeTab === 'accounting-tab'"
+             x-transition>
+      <div class="sub-tab-bar" style="flex-wrap: wrap;">
+        <button class="sub-tab-btn" 
+                :class="{ 'active': activeAccTab === 'acc-tab1' }"
+                @click="activeAccTab = 'acc-tab1'">📋 DS HĐ Tháng trước</button>
+        <button class="sub-tab-btn" 
+                :class="{ 'active': activeAccTab === 'acc-tab2' }"
+                @click="activeAccTab = 'acc-tab2'">🏦 DS CK VTB Tháng này</button>
+        <button class="sub-tab-btn" :class="{ 'active': activeAccTab === 'acc-tab3' }" @click="activeAccTab = 'acc-tab3'">📉 Còn học/ Quên CK</button>
+        <button class="sub-tab-btn" 
+                :class="{ 'active': activeAccTab === 'acc-tab4' }"
+                @click="activeAccTab = 'acc-tab4'">🛑 Stop - nghỉ học</button>
+        <button class="sub-tab-btn" 
+                :class="{ 'active': activeAccTab === 'acc-tab5' }"
+                @click="activeAccTab = 'acc-tab5'">📈 Tăng mới</button>
+        <button class="sub-tab-btn" 
+                :class="{ 'active': activeAccTab === 'acc-tab6' }"
+                @click="activeAccTab = 'acc-tab6'">⚠️ Chuyển tiền sai</button>
+        <button class="sub-tab-btn" 
+                :class="{ 'active': activeAccTab === 'acc-tab7' }"
+                @click="activeAccTab = 'acc-tab7'">📋 Tổng hợp</button>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="summary-cards" style="margin-bottom: 1rem;">
+        <div class="summary-card card">
+          <div class="card-top">
+            <span class="card-icon">📋</span>
+            <span class="card-value" x-text="$store.appState.accountingData.tab1?.length || 0"></span>
+          </div>
+          <div class="card-label">DS HĐ tháng trước</div>
+        </div>
+        <div class="summary-card card success">
+          <div class="card-top">
+            <span class="card-icon">🏦</span>
+            <span class="card-value" x-text="$store.appState.accountingData.tab2?.length || 0"></span>
+          </div>
+          <div class="card-label">CK VTB tháng này</div>
+        </div>
+        <div class="summary-card card warning">
+          <div class="card-top">
+            <span class="card-icon">📉</span>
+            <span class="card-value" x-text="$store.appState.accountingData.tab3?.length || 0"></span>
+          </div>
+          <div class="card-label">Giảm bớt</div>
+        </div>
+        <div class="summary-card card error">
+          <div class="card-top">
+            <span class="card-icon">🛑</span>
+            <span class="card-value" x-text="$store.appState.accountingData.tab4?.length || 0"></span>
+          </div>
+          <div class="card-label">Stop - nghỉ học</div>
+        </div>
+        <div class="summary-card card info">
+          <div class="card-top">
+            <span class="card-icon">📈</span>
+            <span class="card-value" x-text="$store.appState.accountingData.tab5?.length || 0"></span>
+          </div>
+          <div class="card-label">Tăng mới</div>
+        </div>
+        <div class="summary-card card" style="background: linear-gradient(135deg, #f85149 0%, #d29922 100%);">
+          <div class="card-top">
+            <span class="card-icon">⚠️</span>
+            <span class="card-value" style="color: white;" x-text="$store.appState.accountingData.tab6?.length || 0"></span>
+          </div>
+          <div class="card-label" style="color: white;">CK sai tiền</div>
+        </div>
+        <div class="summary-card card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+          <div class="card-top">
+            <span class="card-icon">📋</span>
+            <span class="card-value" style="color: white;" x-text="$store.appState.accountingData.tab7?.length || 0"></span>
+          </div>
+          <div class="card-label" style="color: white;">Tổng hợp</div>
+        </div>
+      </div>
+
+      <!-- Sub-tab 1: DS HĐ Tháng trước -->
+      <div x-show="activeAccTab === 'acc-tab1'" x-transition>
+        <div class="card glass-card mt-4">
+          <h3>📋 DS HĐ Tháng trước</h3>
+          <p class="text-sm text-secondary mb-2">Danh sách gốc từ File Kế toán tháng trước. Đây là nguồn gốc, tất cả HS tháng trước.</p>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 40px;">STT</th>
+                  <th>MSHS</th>
+                  <th>Mã lớp</th>
+                  <th>Họ và tên HS</th>
+                  <th>Giáo viên</th>
+                  <th>Học phí</th>
+                  <th>Địa chỉ</th>
+                  <th>Ghi chú tháng trước</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!$store.appState.accountingData.tab1 || $store.appState.accountingData.tab1.length === 0">
+                  <tr>
+                    <td colspan="8" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu</td>
+                  </tr>
+                </template>
+                <template x-for="(row, idx) in $store.appState.accountingData.tab1" :key="'tab1-' + idx">
+                  <tr>
+                    <td x-text="idx + 1"></td>
+                    <td x-text="row.mshs"></td>
+                    <td x-text="row.className"></td>
+                    <td x-text="row.fullName"></td>
+                    <td x-text="row.teacher"></td>
+                    <td style="text-align: right; font-weight: 600; white-space: nowrap;" x-text="$formatCurrency(row.hocPhi)"></td>
+                    <td class="wrap" style="max-width: 200px; font-size: 13px;" x-text="row.diaChi || '—'"></td>
+                    <td class="wrap" style="max-width: 200px; font-size: 13px;" x-text="row.ghiChu || '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3" style="text-align:right;">
+            <button class="btn btn-sm btn-outline" @click="copyToAccTab7(1)">📥 Copy sang Tổng hợp</button>
+            <button class="btn btn-sm btn-primary" @click="exportAccTab(1)">📥 Xuất Excel Tab này</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-tab 2: DS CK VTB Tháng này -->
+      <div x-show="activeAccTab === 'acc-tab2'" x-transition>
+        <div class="card glass-card mt-4">
+          <h3>🏦 DS CK VTB Tháng này</h3>
+          <p class="text-sm text-secondary mb-2">Học sinh đã chuyển khoản vào TK Công ty VietinBank tháng này.</p>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>STT</th>
+                  <th>MSHS</th>
+                  <th>Họ tên</th>
+                  <th>Lớp</th>
+                  <th>Học phí</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!$store.appState.accountingData.tab2 || $store.appState.accountingData.tab2.length === 0">
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu</td>
+                  </tr>
+                </template>
+                <template x-for="(row, idx) in $store.appState.accountingData.tab2" :key="'tab2-' + idx">
+                  <tr>
+                    <td x-text="idx + 1"></td>
+                    <td x-text="row.mshs"></td>
+                    <td x-text="row.fullName"></td>
+                    <td x-text="row.className"></td>
+                    <td x-text="$formatCurrency(row.hocPhi)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3" style="text-align:right;">
+            <button class="btn btn-sm btn-outline" @click="copyToAccTab7(2)">📥 Copy sang Tổng hợp</button>
+            <button class="btn btn-sm btn-primary" @click="exportAccTab(2)">📥 Xuất Excel Tab này</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-tab 3: Giảm bớt -->
+      <div x-show="activeAccTab === 'acc-tab3'" x-transition>
+        <div class="card glass-card mt-4">
+          <h3>📉 Còn học / Quên CK VTB (Giảm bớt)</h3>
+          <p class="text-sm text-secondary mb-2">Tháng trước có, tháng này chưa CK. Vẫn còn trong DS Tổng và HP &gt; 0 → cần nhắc/nhắc nợ.</p>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>STT</th>
+                  <th>MSHS</th>
+                  <th>Họ tên</th>
+                  <th>Lớp</th>
+                  <th>Học phí</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!$store.appState.accountingData.tab3 || $store.appState.accountingData.tab3.length === 0">
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu</td>
+                  </tr>
+                </template>
+                <template x-for="(row, idx) in $store.appState.accountingData.tab3" :key="'tab3-' + idx">
+                  <tr>
+                    <td x-text="idx + 1"></td>
+                    <td x-text="row.mshs"></td>
+                    <td x-text="row.fullName"></td>
+                    <td x-text="row.className"></td>
+                    <td x-text="$formatCurrency(row.hocPhi)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3" style="text-align:right;">
+            <button class="btn btn-sm btn-outline" @click="copyToAccTab7(3)">📥 Copy sang Tổng hợp</button>
+            <button class="btn btn-sm btn-primary" @click="exportAccTab(3)">📥 Xuất Excel Tab này</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-tab 4: Stop - nghỉ học -->
+      <div x-show="activeAccTab === 'acc-tab4'" x-transition>
+        <div class="card glass-card mt-4">
+          <h3>🛑 Stop - nghỉ học</h3>
+          <p class="text-sm text-secondary mb-2">Trong danh sách giảm bớt mà KHÔNG còn trong DS Tổng, hoặc HP = 0.</p>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>STT</th>
+                  <th>MSHS</th>
+                  <th>Họ tên</th>
+                  <th>Lớp</th>
+                  <th>Học phí</th>
+                  <th style="text-align: center;">
+                    🔄 Vẫn học
+                    <div style="font-size: 0.75rem; font-weight: normal; cursor: pointer; color: var(--primary);" @click="setAllTab4('continue')">Chọn tất cả</div>
+                  </th>
+                  <th style="text-align: center;">
+                    🛑 Nghỉ học
+                    <div style="font-size: 0.75rem; font-weight: normal; cursor: pointer; color: #dc3545;" @click="setAllTab4('stop')">Chọn tất cả</div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!$store.appState.accountingData.tab4 || $store.appState.accountingData.tab4.length === 0">
+                  <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu</td>
+                  </tr>
+                </template>
+                <template x-for="(row, idx) in $store.appState.accountingData.tab4" :key="'tab4-' + idx">
+                  <tr>
+                    <td x-text="idx + 1"></td>
+                    <td x-text="row.mshs"></td>
+                    <td x-text="row.fullName"></td>
+                    <td x-text="row.className"></td>
+                    <td x-text="$formatCurrency(row.hocPhi)"></td>
+                    <td style="text-align: center;">
+                      <input type="radio" :name="'tab4-' + row.mshs" value="continue" x-model="tab4Choice[row.mshs]" style="transform: scale(1.5); cursor: pointer;">
+                    </td>
+                    <td style="text-align: center;">
+                      <input type="radio" :name="'tab4-' + row.mshs" value="stop" x-model="tab4Choice[row.mshs]" style="transform: scale(1.5); cursor: pointer;">
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3" style="text-align:right;">
+            <button class="btn btn-sm btn-outline" @click="copyToAccTab7(4)">📥 Copy sang Tổng hợp</button>
+            <button class="btn btn-sm btn-primary" @click="exportAccTab(4)">📥 Xuất Excel Tab này</button>
+            <button class="btn btn-sm btn-primary" 
+                    @click="confirmTab4Split()"
+                    :disabled="!canConfirmStop">
+              Xác nhận phân loại
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-tab 5: Tăng mới -->
+      <div x-show="activeAccTab === 'acc-tab5'" x-transition>
+        <div class="card glass-card mt-4">
+          <h3>📈 Tăng mới — Tháng này mới CK VTB</h3>
+          <p class="text-sm text-secondary mb-2">Học sinh CK VTB tháng này nhưng KHÔNG có trong DS HĐ tháng trước →HS mới.</p>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>STT</th>
+                  <th>MSHS</th>
+                  <th>Họ tên</th>
+                  <th>Lớp</th>
+                  <th>Học phí</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!$store.appState.accountingData.tab5 || $store.appState.accountingData.tab5.length === 0">
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu</td>
+                  </tr>
+                </template>
+                <template x-for="(row, idx) in $store.appState.accountingData.tab5" :key="'tab5-' + idx">
+                  <tr>
+                    <td x-text="idx + 1"></td>
+                    <td x-text="row.mshs"></td>
+                    <td x-text="row.fullName"></td>
+                    <td x-text="row.className"></td>
+                    <td x-text="$formatCurrency(row.hocPhi)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3" style="text-align:right;">
+            <button class="btn btn-sm btn-outline" @click="copyToAccTab7(5)">📥 Copy sang Tổng hợp</button>
+            <button class="btn btn-sm btn-primary" @click="exportAccTab(5)">📥 Xuất Excel Tab này</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-tab 6: Chuyển tiền sai -->
+      <div x-show="activeAccTab === 'acc-tab6'" x-transition>
+        <div class="card glass-card mt-4">
+          <h3>⚠️ Chuyển tiền sai</h3>
+          <p class="text-sm text-secondary mb-2">Thuật toán "Dò và chia tiền" — mỗi gia đình 1 dòng.</p>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 40px;">STT</th>
+                  <th>Thành viên (số tiền được cấp)</th>
+                  <th>Tổng CK thực tế</th>
+                  <th>Tổng HP kỳ vọng</th>
+                  <th>Chênh lệch</th>
+                  <th>Lý do</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!$store.appState.accountingData.tab6 || $store.appState.accountingData.tab6.length === 0">
+                  <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu</td>
+                  </tr>
+                </template>
+                <template x-for="(row, idx) in $store.appState.accountingData.tab6" :key="'tab6-' + idx">
+                  <tr>
+                    <td x-text="idx + 1"></td>
+                    <td class="wrap" style="max-width: 320px; font-size: 13px;" x-text="(row.memberDetails || []).map(m => `${m.mshs} (${m.fullName || m.mshs})`).join(' | ')"></td>
+                    <td style="text-align: right; font-weight: 600; white-space: nowrap;" x-text="$formatCurrency(row.tongCKGiaDinh || 0)"></td>
+                    <td style="text-align: right; white-space: nowrap;" x-text="$formatCurrency(row.kyVong || 0)"></td>
+                    <td style="text-align: right; font-weight: 700; white-space: nowrap;" x-text="$formatCurrency(row.chenhLech || 0)"></td>
+                    <td class="wrap" style="max-width: 220px; font-size: 13px;" x-text="row.lyDo || '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3" style="text-align:right;">
+            <button class="btn btn-sm btn-outline" @click="copyToAccTab7(6)">📥 Copy sang Tổng hợp</button>
+            <button class="btn btn-sm btn-primary" @click="exportAccTab(6)">📥 Xuất Excel Tab này</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-tab 7: Tổng hợp -->
+      <div x-show="activeAccTab === 'acc-tab7'" x-transition>
+        <div class="card glass-card mt-4">
+          <h3>📋 Tổng hợp — Tập hợp dữ liệu từ các tab</h3>
+          <p class="text-sm text-secondary mb-2">Bấm "📥 Copy sang Tổng hợp" ở bất kỳ tab nào để đưa dữ liệu vào đây.</p>
+          <div class="mb-3" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding: 10px; background: rgba(0,0,0,0.02); border-radius: 6px;">
+            <span style="font-weight:bold; font-size:0.9rem;">Hiển thị Tag:</span>
+            <template x-for="tag in getTab7UniqueTags()" :key="tag">
+              <label style="display:flex; align-items:center; gap:4px; font-size:0.85rem; cursor:pointer; margin:0;">
+                <input type="checkbox" :value="tag" x-model="$store.appState.accTab7FilterTags" @change="saveAccTab7()">
+                <span x-text="tag" class="badge bg-secondary"></span>
+              </label>
+            </template>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>STT</th>
+                  <th>MSHS</th>
+                  <th>Họ tên</th>
+                  <th>Lớp</th>
+                  <th>Học phí</th>
+                  <th>Ghi chú</th>
+                  <th style="width:60px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!$store.appState.accountingData.tab7 || $store.appState.accountingData.tab7.length === 0">
+                  <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu</td>
+                  </tr>
+                </template>
+                <template x-for="(row, idx) in $store.appState.accountingData.tab7" :key="'tab7-' + idx">
+                  <tr>
+                    <td x-text="idx + 1"></td>
+                    <td>
+                      <span x-text="row.mshs"></span>
+                    </td>
+                    <td x-text="row.fullName"></td>
+                    <td>
+                      <template x-if="row.classes && row.classes.length > 1">
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                          <template x-for="cls in row.classes">
+                            <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px; margin: 0; cursor: pointer;">
+                              <input type="radio" :name="'cls-' + row.mshs" :value="cls" x-model="row.selectedClass" @change="saveAccTab7()">
+                              <span x-text="cls"></span>
+                            </label>
+                          </template>
+                        </div>
+                      </template>
+                      <template x-if="!row.classes || row.classes.length <= 1">
+                        <span x-text="row.selectedClass || row.className"></span>
+                      </template>
+                    </td>
+                    <td>
+                      <input type="number" x-model.number="row.hocPhi" @change="saveAccTab7()" class="form-control" style="width: 100px; padding: 4px 6px;">
+                      <div x-show="row.hocPhi !== $store.appState.defaultFee" style="font-size: 0.7rem; color: #dc3545; margin-top: 4px; font-weight: bold;">⚠️ Khác mặc định</div>
+                    </td>
+                    <td>
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <span class="badge" x-show="row.sourceTab && $store.appState.accTab7FilterTags.includes(row.sourceTab)" x-text="row.sourceTab" style="font-size: 0.7rem; background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; white-space: nowrap;"></span>
+                        <input type="text" x-model="row.ghiChu" @change="saveAccTab7()" class="form-control" style="width: 150px; padding: 4px 6px;" placeholder="Nhập ghi chú...">
+                      </div>
+                    </td>
+                    <td><button class="btn btn-xs btn-outline" @click="removeAccTab7Row(idx)" title="Xóa dòng này">🗑️</button></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3" style="display:flex; justify-content:flex-end; gap:8px;">
+            <button class="btn btn-sm btn-outline" @click="clearAccTab7()">🗑️ Xóa hết</button>
+            <button class="btn btn-sm btn-primary" @click="exportAccTab(7)">📥 Xuất Excel Tab này</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export all button -->
+      <div class="action-panel mt-4" style="flex-direction: row; justify-content: center; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-primary" @click="exportAllAccountingTabs()">
+          📥 Xuất tất cả (7 tabs)
+        </button>
+      </div>
+    </section>
+
+
+    <!-- TAB DÒNG TIỀN -->
+    <section id="cashflow-tab" class="tab-content" x-show="$store.appState.activeTab === 'cashflow-tab'" x-transition>
+      <div class="card glass-card" style="min-height: 80vh;">
+        <div class="section-header">
+          <h3>💰 Tổng hợp Dòng tiền theo MSHS</h3>
+          <p class="text-sm text-secondary">Liệt kê tất cả học sinh và chi tiết các dòng tiền đã được gán tương ứng.</p>
+        </div>
+        <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+          <input type="text" x-model="$store.appState.cashflowFilter.search" placeholder="🔍 Tìm theo MSHS, Họ tên, Lớp..." style="flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 14px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
+            <input type="checkbox" x-model="$store.appState.cashflowFilter.onlyWithMoney" style="width: 16px; height: 16px;">
+            Chỉ hiện HS có tiền
+          </label>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 100px;">MSHS</th>
+                <th>Họ Tên</th>
+                <th style="width: 80px;">Lớp</th>
+                <th>Chi tiết các giao dịch đã nhận</th>
+                <th style="width: 120px; text-align: right;">Tổng cộng</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr x-show="groupedCashflow().length === 0">
+                <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 24px;">Không tìm thấy dữ liệu.</td>
+              </tr>
+              <template x-for="row in groupedCashflow()" :key="row.mshs">
+                <tr>
+                  <td><span class="status-badge badge-default" x-text="row.mshs"></span></td>
+                  <td style="font-weight: 500;" x-text="row.fullName"></td>
+                  <td x-text="row.className"></td>
+                  <td>
+                    <template x-if="row.txList.length === 0">
+                      <span style="color: var(--text-secondary); font-style: italic; font-size: 13px;">Chưa có giao dịch</span>
+                    </template>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                      <template x-for="(tx, idx) in row.txList" :key="idx">
+                        <div style="font-size: 13px; padding: 6px; background: rgba(0,0,0,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                            <span>
+                              <span x-show="tx.source === 'vtb'" class="tag-vtb" style="padding: 2px 6px; font-size: 11px;">VTB</span>
+                              <span x-show="tx.source === 'tpb'" class="tag-tpb" style="padding: 2px 6px; font-size: 11px;">TPB</span>
+                              <span x-show="tx.source === 'cash'" class="tag-cash" style="padding: 2px 6px; font-size: 11px;">Tiền mặt</span>
+                              <span style="color: var(--text-secondary); margin-left: 6px;" x-text="$formatDate(tx.date || tx.transactionDate || tx.ngayNop)"></span>
+                            </span>
+                            <strong style="color: var(--primary);" x-text="$formatCurrency(tx.amount || tx.credit)"></strong>
+                          </div>
+                          <div style="color: var(--text-secondary); font-style: italic;" x-text="tx.description || tx.explanation || tx.nguoiNop || tx.account || ''"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </td>
+                  <td style="text-align: right; font-weight: 700; color: var(--primary); font-size: 15px;" x-text="$formatCurrency(row.total)"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: Cài đặt -->
+    <section id="settings-tab" 
+             class="tab-content"
+             x-show="$store.appState.activeTab === 'settings-tab'"
+             x-transition>
+      <div class="card glass-card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3>Dữ liệu Mapping</h3>
+          <div>
+            <button class="btn btn-sm btn-primary" @click="exportMapping()">Xuất Mapping</button>
+          </div>
+        </div>
+        
+        <div class="settings-section">
+          <h4>🏦 STK Phụ <span class="count-badge" x-text="stkPhuData.length"></span></h4>
+          <input type="text" placeholder="🔍 Tìm STK, MSHS, tên TK..." 
+                 x-model="stkPhuSearch"
+                 style="width: 100%; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px;">
+          <div class="table-container compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 12%;">MSHS</th>
+                  <th style="width: 18%;">Họ tên</th>
+                  <th style="width: 12%;">Lớp</th>
+                  <th style="width: 20%;">STK</th>
+                  <th>Tên TK</th>
+                  <th style="width: 15%;">Ngày gán</th>
+                  <th style="width: 100px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="stkPhuData.length === 0">
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 24px;">Chưa có dữ liệu</td>
+                  </tr>
+                </template>
+                <template x-for="item in stkPhuData.filter(s => !stkPhuSearch || (s.mshs + s.stk + s.tenTK).toLowerCase().includes(stkPhuSearch.toLowerCase()))" :key="item.stk">
+                  <tr>
+                    <td><span class="status-badge badge-default" style="font-size: 13px;" x-text="item.mshs"></span></td>
+                    <td x-text="item.tenHS || lookupStudentInfo(item.mshs).fullName || '-'"></td>
+                    <td x-text="item.className || lookupStudentInfo(item.mshs).className || '-'"></td>
+                    <td style="font-family: monospace; font-weight: 600;" x-text="item.stk"></td>
+                    <td x-text="item.tenTK"></td>
+                    <td style="font-size: 13px; white-space: nowrap;" x-text="$formatDate(item.addedDate)"></td>
+                    <td style="white-space: nowrap;">
+                      <button class="btn btn-sm btn-outline" @click="editStkMapping(item.stk)" title="Sửa mapping">✏️</button>
+                      <button class="btn btn-sm btn-danger" @click="deleteStkMapping(item.stk)" title="Xóa mapping sai">✕</button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4>🔑 Từ khóa TPBank <span class="count-badge" x-text="keywordData.length"></span></h4>
+          <input type="text" placeholder="🔍 Tìm từ khóa, MSHS, tên HS..." 
+                 x-model="keywordSearch"
+                 style="width: 100%; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px;">
+          <div class="table-container compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 25%;">Từ khóa</th>
+                  <th style="width: 15%;">MSHS</th>
+                  <th style="width: 20%;">Họ tên</th>
+                  <th style="width: 15%;">Lớp</th>
+                  <th style="width: 15%;">Ngày gán</th>
+                  <th style="width: 100px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="keywordData.length === 0">
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 24px;">Chưa có dữ liệu</td>
+                  </tr>
+                </template>
+                <template x-for="item in keywordData.filter(k => !keywordSearch || (k.keyword + k.mshs + k.tenHS).toLowerCase().includes(keywordSearch.toLowerCase()))" :key="item.keyword">
+                  <tr>
+                    <td><span class="tag-tpb" x-text="item.keyword"></span></td>
+                    <td><span class="status-badge badge-default" style="font-size: 13px;" x-text="item.mshs"></span></td>
+                    <td x-text="item.tenHS || lookupStudentInfo(item.mshs).fullName || '-'"></td>
+                    <td x-text="item.className || lookupStudentInfo(item.mshs).className || '-'"></td>
+                    <td style="font-size: 13px; white-space: nowrap;" x-text="$formatDate(item.addedDate)"></td>
+                    <td style="white-space: nowrap;">
+                      <button class="btn btn-sm btn-outline" @click="editKeywordMapping(item.keyword)" title="Sửa từ khóa">✏️</button>
+                      <button class="btn btn-sm btn-danger" @click="deleteKeywordMapping(item.keyword)" title="Xóa keyword sai">✕</button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;">👨‍👩‍👧 Nhóm Gia đình <span class="count-badge" x-text="familyGroups.length"></span></h4>
+            <button class="btn btn-sm btn-primary" @click="addFamilyGroupUI()">➕ Thêm nhóm</button>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">Dùng khi 1 phụ huynh đóng tiền cho nhiều con.</p>
+          <div class="table-container compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tên nhóm</th>
+                  <th>STK Đại diện</th>
+                  <th>Tên PH</th>
+                  <th>Thành viên (MSHS)</th>
+                  <th style="width: 110px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="familyGroups.length === 0">
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu</td>
+                  </tr>
+                </template>
+                <template x-for="group in familyGroups" :key="group.groupId || group.stk">
+                  <tr>
+                    <td x-text="group.groupName || group.name"></td>
+                    <td x-text="group.stkDaiDien || group.stk"></td>
+                    <td x-text="group.tenPH || group.parentName"></td>
+                    <td x-text="group.members?.join(', ')"></td>
+                    <td style="white-space: nowrap;">
+                      <button class="btn btn-sm btn-outline" @click="editFamilyGroup(group)" title="Sửa thông tin nhóm">✏️</button>
+                      <button class="btn btn-sm btn-danger" @click="deleteFamilyGroup(group.groupId)" title="Xóa nhóm">✕</button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;">📦 Đóng gói học phí (nhiều tháng) <span class="count-badge" x-text="(packageData || []).length"></span></h4>
+            <button class="btn btn-sm btn-primary" @click="addPackageUI()">➕ Thêm gói</button>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">Ghi nhận khi phụ huynh đóng trước nhiều tháng. Hệ thống tự ghi nhận bé đã đóng cho các tháng trong gói, không báo "chưa đóng".</p>
+          <div class="table-container compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tên gói</th>
+                  <th>MSHS thành viên</th>
+                  <th>Họ tên học sinh</th>
+                  <th>Lớp</th>
+                  <th>Số tháng</th>
+                  <th>Giảm %</th>
+                  <th>Từ tháng</th>
+                  <th>Đến tháng</th>
+                  <th style="width: 60px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!(packageData || []).length">
+                  <tr>
+                    <td colspan="9" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu</td>
+                  </tr>
+                </template>
+                <template x-for="pkg in (packageData || [])" :key="pkg.packageId">
+                  <tr>
+                    <td x-text="pkg.packageName || pkg.groupName"></td>
+                    <td style="white-space: nowrap;" x-text="pkg.members?.join(', ')"></td>
+                    <td class="wrap" x-text="pkgMemberNames(pkg.members)"></td>
+                    <td class="wrap" x-text="pkgMemberClasses(pkg.members)"></td>
+                    <td style="text-align: center;" x-text="pkg.months"></td>
+                    <td style="text-align: center;" x-text="pkg.discountPercent"></td>
+                    <td style="white-space: nowrap;" x-text="pkg.startMonth"></td>
+                    <td style="white-space: nowrap;" x-text="pkg.endMonth"></td>
+                    <td><button class="btn btn-sm btn-danger" @click="deletePackage(pkg.packageId)" title="Xóa gói">✕</button></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;">📝 Điều chỉnh học phí <span class="count-badge" x-text="(adjustmentData || []).length"></span></h4>
+            <button class="btn btn-sm btn-primary" @click="addAdjustmentUI()">➕ Thêm điều chỉnh</button>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">Giảm HP cho HS đặc biệt: giới thiệu bạn mới (-400k), miễn giảm... Số âm = giảm.</p>
+          <div class="table-container compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>MSHS</th>
+                  <th>Tên HS</th>
+                  <th>Loại</th>
+                  <th>Số tiền</th>
+                  <th>Tháng</th>
+                  <th>Ghi chú</th>
+                  <th style="width: 60px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!(adjustmentData || []).length">
+                  <tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu</td></tr>
+                </template>
+                <template x-for="a in (adjustmentData || [])" :key="a.id">
+                  <tr>
+                    <td x-text="a.mshs"></td>
+                    <td x-text="a.studentName"></td>
+                    <td x-text="a.type"></td>
+                    <td style="text-align: right; font-weight: 600; white-space: nowrap;" x-text="$formatCurrency(a.amount)"></td>
+                    <td style="white-space: nowrap;" x-text="a.monthYear"></td>
+                    <td class="wrap" x-text="a.note"></td>
+                    <td><button class="btn btn-sm btn-danger" @click="deleteAdjustment(a.id)" title="Xóa">✕</button></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;">🎁 Giới thiệu bạn mới <span class="count-badge" x-text="(referralData || []).length"></span></h4>
+            <button class="btn btn-sm btn-primary" @click="addReferralUI()">➕ Thêm giới thiệu</button>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">PH giới thiệu HS mới → sau 3 tháng HS mới học → PH được giảm (mặc định -400k). Hệ thống tự nhắc khi đủ 3 tháng.</p>
+          <template x-if="(referralAlerts || []).length">
+            <div style="background: #FFF8E1; border: 1px solid #FFE082; border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; font-size: 14px;">
+              <strong>🎁 Đủ 3 tháng, cần trừ tiền tháng này:</strong>
+              <template x-for="r in referralAlerts" :key="r.id">
+                <div>• <strong x-text="r.mshs"></strong> giới thiệu <strong x-text="r.referredMSHS"></strong> — trừ <strong x-text="$formatCurrency(r.amount)"></strong>
+                  <button class="btn btn-sm btn-primary" style="margin-left: 8px;" @click="confirmReferral(r.id)">✅ Xác nhận đã báo PH</button>
+                </div>
+              </template>
+            </div>
+          </template>
+          <div class="table-container compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>PH được giảm</th>
+                  <th>HS mới</th>
+                  <th>Bắt đầu</th>
+                  <th>Giảm từ</th>
+                  <th>Số tiền</th>
+                  <th style="text-align: center;">
+                    🔄 Vẫn học
+                    <div style="font-size: 0.75rem; font-weight: normal; cursor: pointer; color: var(--primary);" @click="setAllTab4('continue')">Chọn tất cả</div>
+                  </th>
+                  <th style="text-align: center;">
+                    🛑 Nghỉ học
+                    <div style="font-size: 0.75rem; font-weight: normal; cursor: pointer; color: #dc3545;" @click="setAllTab4('stop')">Chọn tất cả</div>
+                  </th>
+                  <th style="width: 110px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!(referralData || []).length">
+                  <tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">Chưa có dữ liệu</td></tr>
+                </template>
+                <template x-for="r in (referralData || [])" :key="r.id">
+                  <tr>
+                    <td x-text="r.mshs"></td>
+                    <td x-text="r.referredMSHS"></td>
+                    <td style="white-space: nowrap;" x-text="r.startMonth"></td>
+                    <td style="white-space: nowrap;" x-text="r.applyMonth"></td>
+                    <td style="text-align: right; font-weight: 600; white-space: nowrap;" x-text="$formatCurrency(r.amount)"></td>
+                    <td x-text="r.confirmed ? '✅ Đã xác nhận' : '⏳ Chờ đủ 3 tháng'"></td>
+                    <td style="white-space: nowrap;">
+                      <button x-show="!r.confirmed" class="btn btn-sm btn-primary" @click="confirmReferral(r.id)" title="Xác nhận">✅</button>
+                      <button class="btn btn-sm btn-danger" @click="deleteReferral(r.id)" title="Xóa">✕</button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <h3>💾 Backup & Khôi phục</h3>
+          <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">⚠️ Dữ liệu gán MSHS lưu trong trình duyệt (máy này). Refresh/Ctrl+Shift+R <strong>không mất</strong>, nhưng đổi máy / xóa cache sẽ mất. Nên tải backup sau mỗi lần gán xong.</p>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-outline" @click="exportBackup()">💾 Tải backup toàn bộ (JSON)</button>
+            <button class="btn btn-outline" @click="exportBackupExcel()">📊 Tải backup Excel (mở được, in được)</button>
+            <label class="btn btn-primary" style="cursor: pointer;">
+              📂 Khôi phục từ file backup
+              <input type="file" accept=".json" @change="importBackup($event)" style="display: none;">
+            </label>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 13px; margin-top: 8px;">📌 JSON = để khôi phục lại vào app. Excel = để mở coi/in/lưu trữ, không khôi phục ngược được.</p>
+        </div>
+
+        <div class="settings-section" style="margin-top: 24px;">
+          <h4 style="margin-bottom: 8px;">📜 Lịch sử thao tác <span class="count-badge" x-text="(historyData || []).length"></span></h4>
+          <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 12px;">30 thao tác gần nhất (thêm/xóa nhóm, gói, điều chỉnh, giới thiệu, tạm ngưng...).</p>
+          <div class="table-container compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 150px;">Thời gian</th>
+                  <th style="width: 220px;">Thao tác</th>
+                  <th>Chi tiết</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!(historyData || []).length">
+                  <tr><td colspan="3" style="text-align: center; color: var(--text-secondary);">Chưa có thao tác nào</td></tr>
+                </template>
+                <template x-for="h in (historyData || [])" :key="h.date + (h.action || '')">
+                  <tr>
+                    <td style="font-size: 13px; white-space: nowrap;" x-text="$formatDate(h.date)"></td>
+                    <td x-text="h.action"></td>
+                    <td class="wrap" x-text="h.detail"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- TAB 6: Hướng dẫn -->
+    <section id="guide-tab" 
+             class="tab-content"
+             x-show="$store.appState.activeTab === 'guide-tab'"
+             x-transition>
+      <div class="card glass-card">
+        <h3>📖 Hướng dẫn đối soát học phí — Quy trình từ A-Z</h3>
+        <p style="color: var(--text-secondary); margin-top: 8px;">Mở tab này bất cứ lúc nào để nhớ lại cách làm. Cập nhật lần cuối: 21/08/2026.</p>
+
+        <div class="mt-4" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05);">
+          <h4>🔹 Bước 1: Tải 4 file dữ liệu về máy</h4>
+          <ol style="margin-left: 20px; color: var(--text-secondary); line-height: 2;">
+            <li><strong>DS Học sinh:</strong> Vào Google Trang tính → File → Tải xuống → <code>.xlsx</code></li>
+            <li><strong>Sao kê VietinBank (TK Công ty):</strong> Vào iBanking VietinBank → Sao kê → Xuất <code>.xlsx</code></li>
+            <li><strong>Sao kê TPBank (TK Cá nhân):</strong> Tải PDF từ TPBank → dùng ABBYY convert sang <code>.xlsx</code></li>
+            <li><strong>Tiền mặt:</strong> Tải từ Google Drive (file GV ghi nhận tiền nộp trực tiếp) → <code>.xlsx</code></li>
+          </ol>
+          <p style="color: var(--warning-color); font-size: 13px; margin-top: 8px;">⚠ Nếu tháng nào không có TPBank hoặc Tiền mặt thì bỏ qua ô đó, chỉ cần DS Học sinh + ít nhất 1 nguồn tiền là đủ.</p>
+        </div>
+
+        <div class="mt-4" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05);">
+          <h4>🔹 Bước 2: Import & Đối soát</h4>
+          <ol style="margin-left: 20px; color: var(--text-secondary); line-height: 2;">
+            <li>Mở tab <strong>Import Dữ Liệu</strong>.</li>
+            <li>Kéo thả (hoặc click) 4 file vào đúng 4 ô tương ứng.</li>
+            <li>Chọn <strong>Tháng đối soát</strong> (ví dụ: 07/2026).</li>
+            <li>Kiểm tra <strong>Học phí mặc định</strong> (thường là 800.000đ, nếu tháng nghỉ lễ thì chỉnh lại).</li>
+            <li>Bấm nút <strong style="color: var(--primary-color);">🚀 Bắt đầu đối soát</strong>.</li>
+          </ol>
+        </div>
+
+        <div class="mt-4" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05);">
+          <h4>🔹 Bước 3: Xử lý Ngoại lệ <span style="color: var(--danger-color);">(Quan trọng!)</span></h4>
+          <p style="color: var(--text-secondary); line-height: 1.8;">Sau khi đối soát, chuyển sang tab <strong>Ngoại lệ</strong>. Đây là nơi hiển thị những giao dịch app chưa tự nhận ra được.</p>
+          <ul style="margin-left: 20px; color: var(--text-secondary); line-height: 2;">
+            <li><strong>STK mới chưa map (VietinBank):</strong> Có phụ huynh CK lần đầu bằng STK lạ → Bấm "Gán MSHS" → Nhập mã HS. App tự lưu STK này cho tháng sau.</li>
+            <li><strong>GD TPBank chưa xác định:</strong> Nội dung CK không khớp từ khóa nào → Bấm "Gán MSHS" → Thiết lập từ khóa (ví dụ: "GAU KIEN" → HV236). App tự lưu cho tháng sau.</li>
+            <li><strong>Sau khi gán xong</strong>, bấm lại <strong>Bắt đầu đối soát</strong> để chạy lại với mapping mới.</li>
+          </ul>
+        </div>
+
+        <div class="mt-4" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05);">
+          <h4>🔹 Bước 4: Kiểm tra Báo cáo</h4>
+          <ul style="margin-left: 20px; color: var(--text-secondary); line-height: 2;">
+            <li>Tab <strong>Báo cáo Đối soát</strong>: Xem tổng quan ai đóng rồi, ai chưa, ai đóng thiếu/dư.</li>
+            <li>Cột <strong>Ghi chú</strong> tự động cảnh báo: <span style="color: var(--danger-color);">⚠ CK TK CT lệch HP</span>, <span style="color: var(--info-color);">GĐ: Nhà Cô Lan</span>, <span style="color: var(--warning-color);">Thiếu: 200.000đ</span>...</li>
+            <li>Dùng bộ lọc (Trạng thái, Lớp, GV) để kiểm tra nhanh.</li>
+          </ul>
+        </div>
+
+        <div class="mt-4" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05);">
+          <h4>🔹 Bước 5: Xuất file</h4>
+          <ul style="margin-left: 20px; color: var(--text-secondary); line-height: 2;">
+            <li><strong>📥 Xuất Excel Báo cáo:</strong> File đối soát nội bộ → Dùng để tự check.</li>
+            <li><strong>💾 Backup:</strong> Sao lưu toàn bộ phiên làm việc.</li>
+          </ul>
+        </div>
+
+        <div class="mt-4" style="background: var(--card-bg); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05);">
+          <h4>🔹 Bước 6: Xử lý Kế toán</h4>
+          <ul style="margin-left: 20px; color: var(--text-secondary); line-height: 2;">
+            <li>Tab <strong>Báo cáo Kế toán</strong> → 7 tabs tự động so sánh DS HĐ tháng trước với DS CK VTB tháng này.</li>
+            <li><strong>Tab 1 — DS HĐ Tháng trước:</strong> Danh sách gốc từ file import Kế toán.</li>
+            <li><strong>Tab 2 — DS CK VTB Tháng này:</strong> HS đã CK vào TK Công ty VietinBank.</li>
+            <li><strong>Tab 3 — Giảm bớt:</strong> Tháng trước có, tháng này chưa CK → cần nhắc/nhắc nợ.</li>
+            <li><strong>Tab 4 — Stop - nghỉ học:</strong> Chọn 🛑Nghỉ hoặc 🔄Vẫn học cho từng HS.</li>
+            <li><strong>Tab 5 — Tăng mới:</strong> HS mới CK VTB tháng này mà tháng trước chưa có.</li>
+            <li><strong>Tab 6 — Chuyển tiền sai:</strong> Thuật toán "Dò và chia tiền".</li>
+            <li><strong>Tab 7 — Tổng hợp:</strong> Tập hợp dữ liệu từ các tab khác.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Container -->
+  <div id="toast-container" 
+       style="position: fixed; top: 80px; right: 24px; z-index: 10000; display: flex; flex-direction: column; gap: 12px;">
+    <template x-for="toast in $store.toasts.items" :key="toast.id">
+      <div class="toast-item" 
+           :class="'toast-' + toast.type"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="opacity-0 transform translate-x-8"
+           x-transition:enter-end="opacity-100 transform translate-x-0"
+           x-transition:leave="transition ease-in duration-200"
+           x-transition:leave-start="opacity-100"
+           x-transition:leave-end="opacity-0"
+           @click="$store.toasts.remove(toast.id)"
+           style="padding: 12px 20px; background: rgba(30,30,30,0.95); border-radius: 8px; color: #fff; font-size: 14px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 280px; border-left: 4px solid;">
+        <span x-text="toast.message"></span>
+      </div>
+    </template>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div x-show="showLoading" 
+       x-transition
+       class="loading-overlay" 
+       style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+    <div class="spinner" style="width: 48px; height: 48px; border: 4px solid rgba(255,255,255,0.1); border-top-color: var(--primary-color); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+    <p style="color: #fff; margin-top: 16px; font-size: 16px;">Đang xử lý...</p>
+  </div>
+
+  <!-- Modal chung (chi tiết thanh toán) -->
+  <div x-show="showModal" 
+       x-transition
+       @click.self="showModal = false"
+       class="modal-backdrop" 
+       style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9998; display: flex; align-items: center; justify-content: center;">
+    <div class="modal-content card glass-card" 
+         style="max-width: 1000px; width: 94%; max-height: 85vh; overflow-y: auto;"
+         @click.stop>
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+        <h3 x-text="modalTitle"></h3>
+        <button @click="showModal = false" class="btn-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">&times;</button>
+      </div>
+      <div class="modal-body" x-html="modalBody"></div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+        <button @click="showModal = false" class="btn btn-secondary">Đóng</button>
+        <button x-show="modalConfirm" @click="modalConfirm(); showModal = false" class="btn btn-primary">Xác nhận</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Gán MSHS -->
+  <div x-show="showAssignModal"
+       x-transition
+       @click.self="showAssignModal = false"
+       style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+    <div class="card glass-card" @click.stop style="max-width: 560px; width: 92%; max-height: 85vh; overflow-y: auto; padding: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;">🏷️ Gán MSHS</h3>
+        <button @click="showAssignModal = false" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">&times;</button>
+      </div>
+
+      <div style="background: var(--bg-main); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-size: 14px;">
+        <div><strong>Nội dung:</strong> <span x-text="assignTx ? (assignTx.description || assignTx.explanation || '') : ''"></span></div>
+        <div style="margin-top: 6px;"><strong>Số tiền:</strong> <span x-text="assignTx ? $formatCurrency(assignTx.credit || assignTx.amount || 0) : ''"></span></div>
+        <div x-show="assignType === 'vtb'" style="margin-top: 6px;"><strong>STK:</strong> <span style="font-family: monospace;" x-text="assignTx ? (assignTx.debitAccount || assignTx.stkDoiUng || '') : ''"></span></div>
+      </div>
+
+      <template x-if="assignSuggestions.length > 0">
+        <div style="margin-bottom: 16px;">
+          <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 8px;">⭐ Gợi ý từ hệ thống:</label>
+          <template x-for="(s, idx) in assignSuggestions" :key="s.mshs">
+            <label style="display: block; padding: 10px 14px; border: 2px solid var(--border-color); border-radius: 10px; margin-bottom: 8px; cursor: pointer; font-size: 15px;"
+                   :style="assignSelected === s.mshs ? 'border-color: var(--primary); background: var(--primary-light);' : ''">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <input type="radio" name="assignPick" :value="s.mshs" x-model="assignSelected">
+                <span style="font-weight: 700;" x-text="s.mshs"></span>
+                <span x-text="s.studentName || s.hoTen || ''"></span>
+                <span style="font-size: 12px; color: var(--text-secondary);" x-text="studentClass(s.mshs) ? '— ' + studentClass(s.mshs) : ''"></span>
+                <span class="status-badge" :class="s.score >= 0.8 ? 'badge-green' : 'badge-yellow'" style="font-size: 12px;" x-text="Math.round(s.score * 100) + '%'"></span>
+              </div>
+            </label>
+          </template>
+        </div>
+      </template>
+
+      <div x-show="assignType === 'tpb'" style="margin-bottom: 16px;">
+        <div style="margin-bottom: 12px; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">
+            <input type="radio" name="assignMode" value="auto" x-model="assignMode">
+            Tạo Từ khoá tự động (Nhận diện cho cả các lần sau)
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 10px;">
+            <input type="radio" name="assignMode" value="manual" x-model="assignMode">
+            Chỉ gán thủ công GD này (Bỏ qua Từ khoá)
+          </label>
+        </div>
+        
+        <div x-show="assignMode === 'auto'">
+          <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 8px;">🔑 Từ khoá TPBank (Lấy từ nội dung CK):</label>
+          <input type="text" x-model="assignKeyword" placeholder="VD: NGUYEN VAN A"
+                 style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px; text-transform: uppercase;">
+        </div>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 8px;">🔍 Hoặc tìm thủ công:</label>
+        <input type="text" x-model="assignSearch" placeholder="Gõ MSHS, tên HS hoặc lớp..."
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px; margin-bottom: 8px;">
+        <select x-model="assignSelected" size="5"
+                style="width: 100%; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; padding: 8px; height: auto;">
+          <template x-for="s in assignFilteredStudents" :key="s.mshs">
+            <option :value="s.mshs" x-text="s.mshs + ' — ' + s.fullName + (s.className ? ' — ' + s.className : '')"></option>
+          </template>
+        </select>
+      </div>
+
+      <div style="background: #E8F5E9; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: 15px;">
+        <strong>Đã chọn:</strong> <span style="font-weight: 700;" x-text="assignSelected || '(chưa chọn)'"></span>
+        <span x-show="assignStudentName" x-text="' — ' + assignStudentName"></span>
+        <span x-show="assignSelected && studentClass(assignSelected)" style="color: var(--text-secondary);" x-text="assignSelected && studentClass(assignSelected) ? ' — ' + studentClass(assignSelected) : ''"></span>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button @click="showAssignModal = false" class="btn btn-secondary">Hủy</button>
+        <button @click="confirmAssign()" class="btn btn-primary">✅ Xác nhận gán</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Thêm nhóm Gia đình (form 1 lần 4 ô như bản cũ) -->
+  <div x-show="showFamilyModal"
+       x-transition
+       @click.self="showFamilyModal = false"
+       style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+    <div class="card glass-card" @click.stop style="max-width: 520px; width: 92%; padding: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;" x-text="familyEditingId ? '✏️ Sửa Nhóm Gia đình' : '👨‍👩‍👧 Thêm Nhóm Gia đình'"></h3>
+        <button @click="showFamilyModal = false" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">×</button>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Tên nhóm (gợi nhớ) *</label>
+        <input type="text" x-model="familyForm.groupName" placeholder="VD: Nhà Cô Lan"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+      </div>
+      <div style="margin-bottom: 12px; position: relative;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Danh sách MSHS của các con (bắt buộc) *</label>
+        <input type="text" x-model="familyForm.membersRaw" placeholder="Gõ tên/MSHS/lớp rồi bấm chọn (VD: HV011, HV012)"
+               @focus="pickOpen = 'family'" @input="pickOpen = 'family'"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px; text-transform: uppercase;">
+        <template x-if="pickOpen === 'family' && pickSuggestions().length">
+          <div style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--border-color); border-radius: 8px; z-index: 50; max-height: 220px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <template x-for="s in pickSuggestions()" :key="s.mshs">
+              <div @click="pickStudent(s.mshs)" style="padding: 8px 12px; cursor: pointer; font-size: 14px;"
+                   x-text="s.mshs + ' — ' + s.fullName + (s.className ? ' — ' + s.className : '')"></div>
+            </template>
+          </div>
+        </template>
+        <template x-if="previewMembers(familyForm.membersRaw).length">
+          <div style="margin-top: 8px; font-size: 13px; display: flex; flex-direction: column; gap: 4px;">
+            <template x-for="p in previewMembers(familyForm.membersRaw)" :key="p.mshs">
+              <div :style="p.found ? 'color: #2E7D32;' : 'color: #C62828; font-weight: 600;'">
+                <span x-text="'• ' + p.mshs"></span>
+                <span x-show="p.found" x-text="' — ' + p.fullName + (p.className ? ' — ' + p.className : '')"></span>
+                <span x-show="!p.found"> — ⚠️ không có trong DS học sinh</span>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Tên PH / Chủ tài khoản (tùy chọn)</label>
+        <input type="text" x-model="familyForm.tenPH" placeholder="Tên phụ huynh nếu biết"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">STK Đại diện (tùy chọn)</label>
+        <input type="text" x-model="familyForm.stk" placeholder="Bỏ trống nếu CK qua TPBank/Zalo"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+      </div>
+      <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">Khi phụ huynh này CK, hệ thống sẽ tự chia đều cho các MSHS trên dựa theo mức học phí của từng bé.<br>💡 Chỉ cần nhập MSHS là đủ. Tên PH và STK là thông tin bổ sung, không bắt buộc.</p>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button @click="showFamilyModal = false" class="btn btn-secondary">Hủy</button>
+        <button @click="confirmFamilyGroup()" class="btn btn-primary" x-text="familyEditingId ? '💾 Lưu thay đổi' : '✅ Thêm nhóm'"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Thêm gói học phí (form 1 lần: Tên gói / MSHS / Số tháng / Từ tháng / Giảm %) -->
+  <div x-show="showPackageModal"
+       x-transition
+       @click.self="showPackageModal = false"
+       style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+    <div class="card glass-card" @click.stop style="max-width: 520px; width: 92%; padding: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;">📦 Thêm Gói học phí</h3>
+        <button @click="showPackageModal = false" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">×</button>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Tên gói (gợi nhớ) *</label>
+        <input type="text" x-model="packageForm.packageName" placeholder="VD: Gói 6 tháng Nhà Cô Lan"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+      </div>
+      <div style="margin-bottom: 12px; position: relative;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Thành viên (MSHS) *</label>
+        <input type="text" x-model="packageForm.membersRaw" placeholder="Gõ tên/MSHS/lớp rồi bấm chọn (VD: HV011, HV012)"
+               @focus="pickOpen = 'pkg'" @input="pickOpen = 'pkg'"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px; text-transform: uppercase;">
+        <template x-if="pickOpen === 'pkg' && pickSuggestions().length">
+          <div style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--border-color); border-radius: 8px; z-index: 50; max-height: 220px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <template x-for="s in pickSuggestions()" :key="s.mshs">
+              <div @click="pickStudent(s.mshs)" style="padding: 8px 12px; cursor: pointer; font-size: 14px;"
+                   x-text="s.mshs + ' — ' + s.fullName + (s.className ? ' — ' + s.className : '')"></div>
+            </template>
+          </div>
+        </template>
+        <template x-if="previewMembers(packageForm.membersRaw).length">
+          <div style="margin-top: 8px; font-size: 13px; display: flex; flex-direction: column; gap: 4px;">
+            <template x-for="p in previewMembers(packageForm.membersRaw)" :key="p.mshs">
+              <div :style="p.found ? 'color: #2E7D32;' : 'color: #C62828; font-weight: 600;'">
+                <span x-text="'• ' + p.mshs"></span>
+                <span x-show="p.found" x-text="' — ' + p.fullName + (p.className ? ' — ' + p.className : '')"></span>
+                <span x-show="!p.found"> — ⚠️ không có trong DS học sinh</span>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+      <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+        <div style="flex: 1;">
+          <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Số tháng *</label>
+          <input type="number" x-model="packageForm.months" min="1" max="24"
+                 style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+        </div>
+        <div style="flex: 1;">
+          <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Giảm %</label>
+          <input type="number" x-model="packageForm.discountPercent" min="0" max="100"
+                 style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+        </div>
+      </div>
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Từ tháng (YYYY-MM) *</label>
+        <input type="text" x-model="packageForm.startMonth" placeholder="VD: 2026-08"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button @click="showPackageModal = false" class="btn btn-secondary">Hủy</button>
+        <button @click="confirmPackage()" class="btn btn-primary">✅ Thêm gói</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Thêm điều chỉnh HP (form 1 lần: MSHS / Loại / Số tiền / Tháng / Ghi chú) -->
+  <div x-show="showAdjustmentModal"
+       x-transition
+       @click.self="showAdjustmentModal = false"
+       style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+    <div class="card glass-card" @click.stop style="max-width: 520px; width: 92%; padding: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;">📝 Thêm Điều chỉnh học phí</h3>
+        <button @click="showAdjustmentModal = false" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">×</button>
+      </div>
+      <div style="margin-bottom: 12px; position: relative;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">MSHS của HS *</label>
+        <input type="text" x-model="adjustmentForm.mshs" placeholder="Gõ tên/MSHS/lớp rồi bấm chọn (VD: HV011)"
+               @focus="pickOpen = 'adj'" @input="pickOpen = 'adj'"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px; text-transform: uppercase;">
+        <template x-if="pickOpen === 'adj' && pickSuggestions().length">
+          <div style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--border-color); border-radius: 8px; z-index: 50; max-height: 220px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <template x-for="s in pickSuggestions()" :key="s.mshs">
+              <div @click="pickStudent(s.mshs)" style="padding: 8px 12px; cursor: pointer; font-size: 14px;"
+                   x-text="s.mshs + ' — ' + s.fullName + (s.className ? ' — ' + s.className : '')"></div>
+            </template>
+          </div>
+        </template>
+        <template x-if="previewOne(adjustmentForm.mshs)">
+          <div style="margin-top: 6px; font-size: 13px; color: #2E7D32;" x-text="'✓ ' + previewOne(adjustmentForm.mshs).fullName + (previewOne(adjustmentForm.mshs).className ? ' — ' + previewOne(adjustmentForm.mshs).className : '')"></div>
+        </template>
+        <template x-if="adjustmentForm.mshs && adjustmentForm.mshs.trim() && !previewOne(adjustmentForm.mshs)">
+          <div style="margin-top: 6px; font-size: 13px; color: #C62828; font-weight: 600;">⚠️ MSHS này không có trong DS học sinh</div>
+        </template>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Loại điều chỉnh *</label>
+        <select x-model="adjustmentForm.type"
+                style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+          <option>Giới thiệu bạn mới</option>
+          <option>Tạm ngưng lớp</option>
+          <option>Hỗ trợ hoàn cảnh</option>
+          <option>Ưu đãi khác</option>
+        </select>
+      </div>
+      <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+        <div style="flex: 1;">
+          <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Số tiền (giảm = số âm) *</label>
+          <input type="number" x-model="adjustmentForm.amount" placeholder="VD: -400000"
+                 style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+        </div>
+        <div style="flex: 1;">
+          <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Tháng áp dụng *</label>
+          <input type="text" x-model="adjustmentForm.monthYear" placeholder="YYYY-MM"
+                 style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+        </div>
+      </div>
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Ghi chú</label>
+        <input type="text" x-model="adjustmentForm.note" placeholder="VD: Mẹ giới thiệu bạn mới học 3 tháng"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+      </div>
+      <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">Số tiền âm = giảm HP. VD: -400000 = giảm 400k. Nếu HP gốc 800k, sau giảm = 400k.</p>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button @click="showAdjustmentModal = false" class="btn btn-secondary">Hủy</button>
+        <button @click="confirmAdjustment()" class="btn btn-primary">✅ Thêm điều chỉnh</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Thêm giới thiệu bạn mới (form 1 lần: PH / HS mới / Tháng bắt đầu / Số tiền) -->
+  <div x-show="showReferralModal"
+       x-transition
+       @click.self="showReferralModal = false"
+       style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+    <div class="card glass-card" @click.stop style="max-width: 520px; width: 92%; padding: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;">🎁 Thêm Giới thiệu bạn mới</h3>
+        <button @click="showReferralModal = false" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">×</button>
+      </div>
+      <div style="margin-bottom: 12px; position: relative;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">MSHS của PH giới thiệu (người được giảm) *</label>
+        <input type="text" x-model="referralForm.mshs" placeholder="Gõ tên/MSHS/lớp rồi bấm chọn (VD: HV001)"
+               @focus="pickOpen = 'ref1'" @input="pickOpen = 'ref1'"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px; text-transform: uppercase;">
+        <template x-if="pickOpen === 'ref1' && pickSuggestions().length">
+          <div style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--border-color); border-radius: 8px; z-index: 50; max-height: 220px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <template x-for="s in pickSuggestions()" :key="s.mshs">
+              <div @click="pickStudent(s.mshs)" style="padding: 8px 12px; cursor: pointer; font-size: 14px;"
+                   x-text="s.mshs + ' — ' + s.fullName + (s.className ? ' — ' + s.className : '')"></div>
+            </template>
+          </div>
+        </template>
+        <template x-if="previewOne(referralForm.mshs)">
+          <div style="margin-top: 6px; font-size: 13px; color: #2E7D32;" x-text="'✓ ' + previewOne(referralForm.mshs).fullName + (previewOne(referralForm.mshs).className ? ' — ' + previewOne(referralForm.mshs).className : '')"></div>
+        </template>
+        <template x-if="referralForm.mshs && referralForm.mshs.trim() && !previewOne(referralForm.mshs)">
+          <div style="margin-top: 6px; font-size: 13px; color: #C62828; font-weight: 600;">⚠️ MSHS này không có trong DS học sinh</div>
+        </template>
+      </div>
+      <div style="margin-bottom: 12px; position: relative;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">MSHS của HS mới được giới thiệu *</label>
+        <input type="text" x-model="referralForm.referredMSHS" placeholder="Gõ tên/MSHS/lớp rồi bấm chọn (VD: HV002)"
+               @focus="pickOpen = 'ref2'" @input="pickOpen = 'ref2'"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px; text-transform: uppercase;">
+        <template x-if="pickOpen === 'ref2' && pickSuggestions().length">
+          <div style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--border-color); border-radius: 8px; z-index: 50; max-height: 220px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <template x-for="s in pickSuggestions()" :key="s.mshs">
+              <div @click="pickStudent(s.mshs)" style="padding: 8px 12px; cursor: pointer; font-size: 14px;"
+                   x-text="s.mshs + ' — ' + s.fullName + (s.className ? ' — ' + s.className : '')"></div>
+            </template>
+          </div>
+        </template>
+        <template x-if="previewOne(referralForm.referredMSHS)">
+          <div style="margin-top: 6px; font-size: 13px; color: #2E7D32;" x-text="'✓ ' + previewOne(referralForm.referredMSHS).fullName + (previewOne(referralForm.referredMSHS).className ? ' — ' + previewOne(referralForm.referredMSHS).className : '')"></div>
+        </template>
+        <template x-if="referralForm.referredMSHS && referralForm.referredMSHS.trim() && !previewOne(referralForm.referredMSHS)">
+          <div style="margin-top: 6px; font-size: 13px; color: #C62828; font-weight: 600;">⚠️ MSHS này không có trong DS học sinh</div>
+        </template>
+      </div>
+      <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+        <div style="flex: 1;">
+          <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Tháng HS mới bắt đầu *</label>
+          <input type="text" x-model="referralForm.startMonth" placeholder="YYYY-MM"
+                 style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+        </div>
+        <div style="flex: 1;">
+          <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Số tiền giảm</label>
+          <input type="number" x-model="referralForm.amount" placeholder="-400000"
+                 style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+        </div>
+      </div>
+      <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">Sau 3 tháng HS mới học → hệ thống tự nhắc để trừ tiền. Mỗi HS mới chỉ được giới thiệu 1 lần (chống trùng).</p>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button @click="showReferralModal = false" class="btn btn-secondary">Hủy</button>
+        <button @click="confirmReferralAdd()" class="btn btn-primary">✅ Thêm giới thiệu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Thêm tạm ngưng (form 1 lần: MSHS / Lớp / Lý do) -->
+  <div x-show="showSuspendModal"
+       x-transition
+       @click.self="showSuspendModal = false"
+       style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+    <div class="card glass-card" @click.stop style="max-width: 520px; width: 92%; padding: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;">⏸️ Thêm Tạm ngưng</h3>
+        <button @click="showSuspendModal = false" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">×</button>
+      </div>
+      <div style="margin-bottom: 12px; position: relative;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">MSHS của HS *</label>
+        <input type="text" x-model="suspendForm.mshs" placeholder="Gõ tên/MSHS/lớp rồi bấm chọn"
+               @focus="pickOpen = 'sus'" @input="pickOpen = 'sus'"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px; text-transform: uppercase;">
+        <template x-if="pickOpen === 'sus' && pickSuggestions().length">
+          <div style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--border-color); border-radius: 8px; z-index: 50; max-height: 220px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <template x-for="s in pickSuggestions()" :key="s.mshs">
+              <div @click="pickStudent(s.mshs)" style="padding: 8px 12px; cursor: pointer; font-size: 14px;"
+                   x-text="s.mshs + ' — ' + s.fullName + (s.className ? ' — ' + s.className : '')"></div>
+            </template>
+          </div>
+        </template>
+        <template x-if="previewOne(suspendForm.mshs)">
+          <div style="margin-top: 6px; font-size: 13px; color: #2E7D32;" x-text="'✓ ' + previewOne(suspendForm.mshs).fullName + (previewOne(suspendForm.mshs).className ? ' — ' + previewOne(suspendForm.mshs).className : '')"></div>
+        </template>
+        <template x-if="suspendForm.mshs && suspendForm.mshs.trim() && !previewOne(suspendForm.mshs)">
+          <div style="margin-top: 6px; font-size: 13px; color: #C62828; font-weight: 600;">⚠️ MSHS này không có trong DS học sinh</div>
+        </template>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Lớp tạm ngưng *</label>
+        <template x-if="studentClasses(suspendForm.mshs).length > 1">
+          <select x-model="suspendForm.className"
+                  style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+            <option value="">-- Chọn lớp --</option>
+            <template x-for="c in studentClasses(suspendForm.mshs)" :key="c">
+              <option :value="c" x-text="c"></option>
+            </template>
+          </select>
+        </template>
+        <template x-if="studentClasses(suspendForm.mshs).length <= 1">
+          <input type="text" x-model="suspendForm.className" placeholder="VD: Pumpkin Seed"
+                 style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+        </template>
+      </div>
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Lý do</label>
+        <input type="text" x-model="suspendForm.note" placeholder="Bỏ trống nếu không có"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button @click="showSuspendModal = false" class="btn btn-secondary">Hủy</button>
+        <button @click="confirmSuspend()" class="btn btn-primary">⏸️ Tạm ngưng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Sửa Mapping (STK Phụ hoặc Từ khóa TPBank) -->
+  <div x-show="showEditMappingModal"
+       x-transition
+       @click.self="showEditMappingModal = false"
+       style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+    <div class="card glass-card" @click.stop style="max-width: 520px; width: 92%; padding: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;" x-text="editMappingType === 'stk' ? '✏️ Sửa STK Phụ' : '✏️ Sửa Từ khóa TPBank'"></h3>
+        <button @click="showEditMappingModal = false" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">×</button>
+      </div>
+      <div style="margin-bottom: 12px; position: relative;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">MSHS của học sinh *</label>
+        <input type="text" x-model="editMappingForm.mshs" placeholder="Gõ tên/MSHS/lớp rồi bấm chọn"
+               @focus="pickOpen = 'edit_mshs'" @input="pickOpen = 'edit_mshs'"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px; text-transform: uppercase;">
+        <template x-if="pickOpen === 'edit_mshs' && pickSuggestions().length">
+          <div style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--border-color); border-radius: 8px; z-index: 50; max-height: 220px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <template x-for="s in pickSuggestions()" :key="s.mshs">
+              <div @click="pickStudent(s.mshs); editMappingForm.mshs = s.mshs; pickOpen = ''" style="padding: 8px 12px; cursor: pointer; font-size: 14px;"
+                   x-text="s.mshs + ' — ' + s.fullName + (s.className ? ' — ' + s.className : '')"></div>
+            </template>
+          </div>
+        </template>
+        <template x-if="previewOne(editMappingForm.mshs)">
+          <div style="margin-top: 6px; font-size: 13px; color: #2E7D32;" x-text="'✓ ' + previewOne(editMappingForm.mshs).fullName + (previewOne(editMappingForm.mshs).className ? ' — ' + previewOne(editMappingForm.mshs).className : '')"></div>
+        </template>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;" x-text="editMappingType === 'stk' ? 'Số tài khoản *' : 'Từ khóa TPBank *'"></label>
+        <input type="text" x-model="editMappingForm.key"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+      </div>
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;" x-text="editMappingType === 'stk' ? 'Tên tài khoản' : 'Tên học sinh'"></label>
+        <input type="text" x-model="editMappingForm.tenTK"
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button @click="showEditMappingModal = false" class="btn btn-secondary">Hủy</button>
+        <button @click="confirmEditMapping()" class="btn btn-primary">💾 Lưu sửa đổi (Áp dụng ngay)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Ghi chú lý do Đóng thiếu / Ưu đãi -->
+  <div x-show="showMissingNoteModal"
+       x-transition
+       @click.self="showMissingNoteModal = false"
+       style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+    <div class="card glass-card" @click.stop style="max-width: 520px; width: 92%; padding: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;">📝 Ghi chú lý do Đóng thiếu / Ưu đãi</h3>
+        <button @click="showMissingNoteModal = false" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">×</button>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Học sinh: <span style="color: var(--primary);" x-text="missingNoteStudent.mshs + ' — ' + missingNoteStudent.name"></span></label>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Loại ghi chú / Ưu đãi</label>
+        <select x-model="missingNoteForm.type"
+                style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+          <option value="Giới thiệu học sinh mới (-400k)">Giới thiệu học sinh mới (-400k) — tự động tạo bên Giới thiệu</option>
+          <option value="Hỗ trợ học phí / Giảm đặc biệt">Hỗ trợ học phí / Giảm đặc biệt</option>
+          <option value="Ghi chú tay (không đổi số tiền)">Ghi chú tay (không đổi số tiền)</option>
+        </select>
+      </div>
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;">Nội dung chi tiết / Lý do</label>
+        <input type="text" x-model="missingNoteForm.note" placeholder="VD: Giới thiệu bé Nguyễn Văn A tháng này..."
+               style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 15px;">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button @click="showMissingNoteModal = false" class="btn btn-secondary">Hủy</button>
+        <button @click="confirmMissingNote()" class="btn btn-primary">✅ Lưu ghi chú & Cập nhật</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Back to Top Button -->
+  <button @click="window.scrollTo({top:0,behavior:'smooth'})" 
+          x-show="window.pageYOffset > 300"
+          x-transition
+          style="position:fixed;bottom:24px;right:24px;z-index:9999;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:20px;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);" 
+          title="Về đầu trang">⬆</button>
+
+  <!-- Scripts -->
+  <script src="lib/xlsx.full.min.js"></script>
+  <script src="js/datamodel.js?v=401"></script>
+  <script src="js/utils.js?v=401"></script>
+  <script src="js/storage.js?v=401"></script>
+  <script src="js/importer.js?v=401"></script>
+  <script src="js/matcher.js?v=401"></script>
+  <script src="js/reporter.js?v=401"></script>
+  <script src="js/accounting.js?v=401"></script>
+  <script src="js/exporter.js?v=401"></script>
+  <script src="js/app.js?v=401"></script>
+
+  <!-- P1-4: nút về đầu trang (hiện khi cuộn quá 300px) -->
+  <div x-data="{ showTop: false }" x-init="window.addEventListener('scroll', () => { showTop = window.scrollY > 300; })">
+    <button class="back-to-top" x-show="showTop" x-transition @click="window.scrollTo({ top: 0, behavior: 'smooth' })" title="Về đầu trang">↑</button>
+  </div>
+  
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.4/dist/cdn.min.js"></script>
+
+  <!-- CSS for animations -->
+  <style>
+    [x-cloak] { display: none !important; }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .toast-success { border-left-color: var(--success-color, #10b981) !important; }
+    .toast-error { border-left-color: var(--danger-color, #ef4444) !important; }
+    .toast-warning { border-left-color: var(--warning-color, #f59e0b) !important; }
+    .toast-info { border-left-color: var(--info-color, #3b82f6) !important; }
+  </style>
+</body>
+</html>

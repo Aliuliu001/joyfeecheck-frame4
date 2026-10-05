@@ -1,0 +1,464 @@
+﻿/**
+ * Storage - Quản lý lưu trữ local storage
+ */
+
+window.Storage = {
+  // Lấy dữ liệu từ localStorage
+  _get: function(key, defaultValue = null) {
+    try {
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : defaultValue;
+    } catch (e) {
+      console.error(`Error reading ${key} from localStorage:`, e);
+      return defaultValue;
+    }
+  },
+
+  // Lưu dữ liệu vào localStorage
+  _set: function(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      console.error(`Error saving ${key} to localStorage:`, e);
+      if (window.Utils) window.Utils.showToast('Lỗi khi lưu dữ liệu. Có thể do bộ nhớ đầy.', 'error');
+      return false;
+    }
+  },
+
+  // STK PHỤ
+  saveSTKPhu: function(data) {
+    return this._set(APP_CONFIG.STORAGE_KEYS.STK_PHU, data);
+  },
+  loadSTKPhu: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.STK_PHU, []);
+  },
+  addSTKPhu: function(mapping) {
+    const list = this.loadSTKPhu();
+    // Xóa cái cũ nếu có cùng STK
+    const filtered = list.filter(item => item.stk !== mapping.stk);
+    filtered.push({
+      ...mapping,
+      addedDate: new Date().toISOString()
+    });
+    this.saveSTKPhu(filtered);
+  },
+  removeSTKPhu: function(stk) {
+    const list = this.loadSTKPhu();
+    this.saveSTKPhu(list.filter(item => item.stk !== stk));
+  },
+  mergeSTKPhu: function(newList) {
+    if (!Array.isArray(newList)) return 0;
+    const currentList = this.loadSTKPhu();
+    const currentMap = new Map(currentList.map(item => [item.stk, item]));
+    let count = 0;
+    
+    newList.forEach(newItem => {
+      if (newItem.stk && !currentMap.has(newItem.stk)) {
+        const entry = {
+          ...newItem,
+          addedDate: newItem.addedDate || new Date().toISOString()
+        };
+        currentList.push(entry);
+        currentMap.set(newItem.stk, entry);
+        count++;
+      }
+    });
+    
+    if (count > 0) {
+      this.saveSTKPhu(currentList);
+    }
+    return count;
+  },
+
+  // TỪ KHÓA
+  saveKeywords: function(data) {
+    return this._set(APP_CONFIG.STORAGE_KEYS.KEYWORDS, data);
+  },
+      loadManualMatches: function() {
+      return this._get('joy_manual_matches') || {};
+    },
+    saveManualMatches: function(matches) {
+      this._set('joy_manual_matches', matches);
+    },
+    addManualMatch: function(txId, mshs) {
+      const matches = this.loadManualMatches();
+      matches[txId] = mshs;
+      this.saveManualMatches(matches);
+    },
+    removeManualMatch: function(txId) {
+      const matches = this.loadManualMatches();
+      delete matches[txId];
+      this.saveManualMatches(matches);
+    },
+
+    loadKeywords: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.KEYWORDS, []);
+  },
+  addKeyword: function(mapping) {
+    const list = this.loadKeywords();
+    const filtered = list.filter(item => item.keyword !== mapping.keyword);
+    filtered.push({
+      ...mapping,
+      addedDate: new Date().toISOString()
+    });
+    this.saveKeywords(filtered);
+  },
+  removeKeyword: function(keyword) {
+    const list = this.loadKeywords();
+    this.saveKeywords(list.filter(item => item.keyword !== keyword));
+  },
+  mergeKeywords: function(newList) {
+    if (!Array.isArray(newList)) return 0;
+    const currentList = this.loadKeywords();
+    const currentMap = new Map(currentList.map(item => [item.keyword, item]));
+    let count = 0;
+    
+    newList.forEach(newItem => {
+      if (newItem.keyword && !currentMap.has(newItem.keyword)) {
+        const entry = {
+          ...newItem,
+          addedDate: newItem.addedDate || new Date().toISOString()
+        };
+        currentList.push(entry);
+        currentMap.set(newItem.keyword, entry);
+        count++;
+      }
+    });
+    
+    if (count > 0) {
+      this.saveKeywords(currentList);
+    }
+    return count;
+  },
+
+  // NHÓM GIA ĐÌNH
+  loadFamilyGroups: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.FAMILY_GROUPS, []);
+  },
+  saveFamilyGroups: function(data) {
+    return this._set(APP_CONFIG.STORAGE_KEYS.FAMILY_GROUPS, data);
+  },
+  addFamilyGroup: function(group) {
+    const list = this.loadFamilyGroups();
+    const newGroup = {
+      ...group,
+      groupId: 'GD' + Date.now(),
+      addedDate: new Date().toISOString()
+    };
+    list.push(newGroup);
+    this.saveFamilyGroups(list);
+    return newGroup.groupId;
+  },
+  removeFamilyGroup: function(groupId) {
+    let list = this.loadFamilyGroups();
+    list = list.filter(g => g.groupId !== groupId);
+    this.saveFamilyGroups(list);
+  },
+  mergeFamilyGroups: function(newList) {
+    if (!Array.isArray(newList)) return 0;
+    const currentList = this.loadFamilyGroups();
+    const currentMap = new Map(currentList.map(item => [item.groupId, item]));
+    let count = 0;
+    
+    newList.forEach(newItem => {
+      if (newItem.groupId && !currentMap.has(newItem.groupId)) {
+        currentList.push(newItem);
+        currentMap.set(newItem.groupId, newItem);
+        count++;
+      }
+    });
+    
+    if (count > 0) {
+      this.saveFamilyGroups(currentList);
+    }
+    return count;
+  },
+
+  // THANH TOÁN THÁNG TRƯỚC
+  addPreviousMonthPayment: function(payment) {
+    const list = this._get(APP_CONFIG.STORAGE_KEYS.PREV_MONTH_PAYMENTS, []);
+    list.push({
+      ...payment,
+      id: 'PMP' + Date.now(),
+      date: new Date().toISOString()
+    });
+    this._set(APP_CONFIG.STORAGE_KEYS.PREV_MONTH_PAYMENTS, list);
+  },
+  loadPreviousMonthPayments: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.PREV_MONTH_PAYMENTS, []);
+  },
+  clearPreviousMonthPayments: function() {
+    this._set(APP_CONFIG.STORAGE_KEYS.PREV_MONTH_PAYMENTS, []);
+  },
+
+  // HỌC PHÍ ĐÓNG GÓI (nhiều tháng)
+  savePackages: function(data) {
+    return this._set(APP_CONFIG.STORAGE_KEYS.PACKAGES, data);
+  },
+  loadPackages: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.PACKAGES, []);
+  },
+  addPackage: function(pkg) {
+    const list = this.loadPackages();
+    const newPkg = {
+      ...pkg,
+      packageId: 'PKG' + Date.now(),
+      addedDate: new Date().toISOString()
+    };
+    list.push(newPkg);
+    this.savePackages(list);
+    return newPkg.packageId;
+  },
+  removePackage: function(packageId) {
+    let list = this.loadPackages();
+    list = list.filter(p => p.packageId !== packageId);
+    this.savePackages(list);
+  },
+  // Kiểm tra MSHS có đang trong gói đóng tiền không
+  isPackageActive: function(mshs, monthYear) {
+    const info = this.getPackageStatus(mshs, monthYear);
+    return info.active ? { active: true, expiring: !!info.expiring, packageName: info.pkg.packageName || info.pkg.groupName, startMonth: info.pkg.startMonth, endMonth: info.pkg.endMonth || '', discountPercent: info.pkg.discountPercent || 0 } : { active: false };
+  },
+  // Trạng thái gói của 1 HS so với tháng đối soát: active | expiring (hết đúng tháng này) | expired (đã hết từ trước) | upcoming
+  getPackageStatus: function(mshs, monthYear) {
+    const packages = this.loadPackages();
+    if (!mshs || !monthYear) return { status: 'none' };
+    const ms = mshs.toUpperCase();
+    const [cy, cm] = String(monthYear).split('-').map(Number);
+    if (!cy || !cm) return { status: 'none' };
+    const cur = cy * 12 + cm;
+    for (const pkg of packages) {
+      if (!pkg.members || !pkg.members.map(m => String(m).toUpperCase()).includes(ms)) continue;
+      if (!pkg.startMonth) continue;
+      const [py, pm] = String(pkg.startMonth).split('-').map(Number);
+      if (!py || !pm) continue;
+      const start = py * 12 + pm;
+      const end = start + (pkg.months || 1) - 1;
+      if (cur >= start && cur <= end) {
+        const last = (end === cur);
+        // Tháng cuối vẫn tính đã đóng, kèm cờ expiring để báo nhắc thu tháng sau
+        return { status: last ? 'expiring' : 'active', active: true, expiring: last, pkg, endMonthIdx: end };
+      }
+      if (cur === end + 1) return { status: 'expired', active: false, justExpired: true, pkg, endMonthIdx: end };
+      if (cur > end + 1) return { status: 'expired', active: false, justExpired: false, pkg, endMonthIdx: end };
+    }
+    return { status: 'none' };
+  },
+  // Quét TẤT CẢ gói: gói nào hết đúng tháng đối soát / vừa hết tháng trước → nhắc thu HP tháng sau
+  getExpiringPackages: function(monthYear, students) {
+    const packages = this.loadPackages();
+    if (!monthYear) return [];
+    const [cy, cm] = String(monthYear).split('-').map(Number);
+    const cur = cy * 12 + cm;
+    const nameMap = {};
+    (students || []).forEach(s => { if (s.mshs) nameMap[String(s.mshs).toUpperCase()] = s.fullName || ''; });
+    const out = [];
+    (packages || []).forEach(pkg => {
+      if (!pkg.startMonth) return;
+      const [py, pm] = String(pkg.startMonth).split('-').map(Number);
+      if (!py || !pm) return;
+      const end = (py * 12 + pm) + (pkg.months || 1) - 1;
+      const ey = Math.floor((end - 1) / 12), em = ((end - 1) % 12) + 1;
+      const endStr = `${ey}-${String(em).padStart(2, '0')}`;
+      const ny = Math.floor(end / 12), nm = (end % 12) + 1;
+      const nextStr = `${ny}-${String(nm).padStart(2, '0')}`;
+      const members = (pkg.members || []).map(m => `${m}${nameMap[String(m).toUpperCase()] ? ' (' + nameMap[String(m).toUpperCase()] + ')' : ''}`);
+      if (end === cur) out.push({ pkg, kind: 'expiring', msg: `hết đúng tháng này (${endStr}) → tháng ${nextStr} thu HP bình thường`, members });
+      else if (end === cur - 1) out.push({ pkg, kind: 'expired', msg: `đã hết từ ${endStr} → tháng này (${monthYear}) thu HP bình thường`, members });
+    });
+    return out;
+  },
+
+  // DỮ LIỆU THÁNG TRƯỚC
+  savePrevMonthDS: function(data, monthInfo) {
+    this._set(APP_CONFIG.STORAGE_KEYS.PREV_MONTH_DS, data);
+    if (monthInfo) {
+      this._set(APP_CONFIG.STORAGE_KEYS.PREV_MONTH_INFO, {
+        ...monthInfo,
+        savedDate: new Date().toISOString()
+      });
+    }
+  },
+  loadPrevMonthDS: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.PREV_MONTH_DS, []);
+  },
+  savePrevMonthHD: function(data) {
+    this._set(APP_CONFIG.STORAGE_KEYS.PREV_MONTH_HD, data);
+  },
+  loadPrevMonthHD: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.PREV_MONTH_HD, []);
+  },
+
+  // THAY ĐỔI ĐỒNG BỘ
+  saveSyncChanges: function(changes) {
+    return this._set(APP_CONFIG.STORAGE_KEYS.SYNC_CHANGES, changes);
+  },
+  loadSyncChanges: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.SYNC_CHANGES, []);
+  },
+  addSyncChange: function(change) {
+    const list = this.loadSyncChanges();
+    list.push({
+      ...change,
+      date: new Date().toISOString(),
+      synced: false
+    });
+    this.saveSyncChanges(list);
+  },
+
+  // LỊCH SỬ
+  addHistory: function(entry) {
+    const list = this.loadHistory();
+    list.unshift({
+      ...entry,
+      date: new Date().toISOString()
+    });
+    // Giữ lại 100 bản ghi gần nhất
+    if (list.length > 100) list.length = 100;
+    this._set(APP_CONFIG.STORAGE_KEYS.HISTORY, list);
+  },
+  loadHistory: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.HISTORY, []);
+  },
+
+  // ========================
+  // ĐIỀU CHỈNH HỌC PHÍ
+  // ========================
+  addFeeAdjustment: function(adj) {
+    const list = this.loadFeeAdjustments();
+    list.push({
+      id: 'adj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      ...adj,
+      createdDate: new Date().toISOString()
+    });
+    this._set('joy_fee_adjustments', list);
+    return list;
+  },
+  loadFeeAdjustments: function() {
+    return this._get('joy_fee_adjustments', []);
+  },
+  removeFeeAdjustment: function(id) {
+    const list = this.loadFeeAdjustments().filter(a => a.id !== id);
+    this._set('joy_fee_adjustments', list);
+    return list;
+  },
+  // Lấy tổng số tiền điều chỉnh cho 1 MSHS trong 1 tháng
+  getAdjustmentForStudent: function(mshs, monthYear) {
+    const list = this.loadFeeAdjustments();
+    return list.filter(a => a.mshs === mshs && a.monthYear === monthYear);
+  },
+
+  // ========================
+  // GIỚI THIỆU BẠN MỚI
+  // ========================
+  addReferral: function(ref) {
+    const list = this.loadReferrals();
+    // Chống trùng: HS mới đã được ai giới thiệu chưa?
+    const exists = list.find(r => r.referredMSHS === ref.referredMSHS);
+    if (exists) return { error: `HS ${ref.referredMSHS} đã được ${exists.mshs} giới thiệu trước đó` };
+    list.push({
+      id: 'ref_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      ...ref,
+      confirmed: false,
+      createdDate: new Date().toISOString()
+    });
+    this._set('joy_referrals', list);
+    return { success: true };
+  },
+  loadReferrals: function() {
+    return this._get('joy_referrals', []);
+  },
+  confirmReferral: function(refId) {
+    const list = this.loadReferrals();
+    const ref = list.find(r => r.id === refId);
+    if (ref) {
+      ref.confirmed = true;
+      ref.confirmedDate = new Date().toISOString();
+      this._set('joy_referrals', list);
+    }
+    return list;
+  },
+  removeReferral: function(refId) {
+    const list = this.loadReferrals().filter(r => r.id !== refId);
+    this._set('joy_referrals', list);
+    return list;
+  },
+  // Kiểm tra referral nào đã đủ 3 tháng và chưa xác nhận
+  getPendingReferrals: function(monthYear) {
+    const list = this.loadReferrals();
+    return list.filter(r => !r.confirmed && r.applyMonth && r.applyMonth <= monthYear);
+  },
+
+  // ========================
+  // TẠM NGƯNG LỚP
+  // ========================
+  addSuspended: function(sus) {
+    const list = this.loadSuspended();
+    // Chống trùng: HS + lớp + tháng đã tạm ngưng chưa?
+    const exists = list.find(s => s.mshs === sus.mshs && s.className === sus.className && s.monthYear === sus.monthYear);
+    if (exists) return { error: `${sus.mshs} lớp ${sus.className} đã tạm ngưng tháng ${sus.monthYear}` };
+    list.push({
+      id: 'sus_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      ...sus,
+      createdDate: new Date().toISOString()
+    });
+    this._set('joy_suspended', list);
+    return { success: true };
+  },
+  loadSuspended: function() {
+    return this._get('joy_suspended', []);
+  },
+  loadAccOverrides: function() {
+    return this._get('joy_acc_overrides', {});
+  },
+  saveAccOverrides: function(data) {
+    return this._set('joy_acc_overrides', data);
+  },
+  removeSuspended: function(susId) {
+    const list = this.loadSuspended().filter(s => s.id !== susId);
+    this._set('joy_suspended', list);
+    return list;
+  },
+  getSuspendedForMonth: function(monthYear) {
+    const list = this.loadSuspended();
+    return list.filter(s => s.monthYear === monthYear);
+  },
+
+  // BACKUP & RESTORE
+  exportFullBackup: function() {
+    const backup = {};
+    Object.values(APP_CONFIG.STORAGE_KEYS).forEach(key => {
+      backup[key] = this._get(key);
+    });
+    backup.backupDate = new Date().toISOString();
+    backup.version = APP_CONFIG.VERSION;
+    return backup;
+  },
+  importFullBackup: function(json) {
+    if (!json || typeof json !== 'object') return false;
+    let success = true;
+    Object.values(APP_CONFIG.STORAGE_KEYS).forEach(key => {
+      if (json[key] !== undefined) {
+        if (!this._set(key, json[key])) success = false;
+      }
+    });
+    return success;
+  },
+
+  // THỐNG KÊ
+  getStorageInfo: function() {
+    const stkCount = this.loadSTKPhu().length;
+    const kwCount = this.loadKeywords().length;
+    const history = this.loadHistory();
+    const prevMonthInfo = this._get(APP_CONFIG.STORAGE_KEYS.PREV_MONTH_INFO, null);
+    
+    return {
+      stkCount,
+      keywordCount: kwCount,
+      lastHistoryDate: history.length > 0 ? history[0].date : null,
+      prevMonthStatus: prevMonthInfo
+    };
+  }
+};
+

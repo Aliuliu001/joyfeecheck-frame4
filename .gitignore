@@ -1,0 +1,11 @@
+.env
+node_modules/
+*.log
+.DS_Store
+# Added by code-review-graph
+.code-review-graph/
+node-v20.10.0-win-x64/
+accounting_path.txt
+target_path.txt
+test.html
+replace_cashflow.js
