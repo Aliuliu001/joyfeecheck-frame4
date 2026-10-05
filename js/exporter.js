@@ -83,10 +83,13 @@ window.Exporter = {
       'Lớp': row.className,
       'GV': row.teacher,
       'Tổng HP': row.tongHocPhi,
+      'Nợ cũ': row.noCu || 0,
+      'Tổng phải thu': row.tongPhaiThu || row.tongHocPhi,
       'CK VietinBank': row.chuyenKhoanVTB,
       'Tiền mặt': row.tienMat,
       'CK TPBank': row.chuyenKhoanTPB,
       'Tổng đã đóng': row.tongDaDong,
+      'Còn thiếu': row.conThieu || 0,
       'Trạng thái': row.trangThai,
       'Ghi chú': row.ghiChu || ''
     }));
@@ -99,10 +102,13 @@ window.Exporter = {
       'Lớp': '',
       'GV': '',
       'Tổng HP': stats.tongHocPhi,
+      'Nợ cũ': stats.tongNoCu || 0,
+      'Tổng phải thu': stats.tongPhaiThu || 0,
       'CK VietinBank': '',
       'Tiền mặt': '',
       'CK TPBank': '',
       'Tổng đã đóng': stats.tongThu,
+      'Còn thiếu': stats.conThieu || 0,
       'Trạng thái': '',
       'Ghi chú': ''
     });
@@ -125,19 +131,21 @@ window.Exporter = {
       [`BÁO CÁO ĐỐI SOÁT - ${monthLabel}`],
       [`Ngày tạo: ${new Date().toLocaleDateString('vi-VN')}`],
       [],
-      ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Tổng HP', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Trạng thái', 'Ghi chú']
+      ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Tổng HP', 'Nợ cũ', 'Tổng phải thu', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Còn thiếu', 'Trạng thái', 'Ghi chú']
     ];
 
     dataRows.forEach(row => {
       finalAoA.push([
         row['STT'], row['MSHS'], row['Họ tên'], row['Lớp'], row['GV'], row['Tổng HP'],
+        row['Nợ cũ'], row['Tổng phải thu'],
         row['CK VietinBank'], row['Tiền mặt'], row['CK TPBank'], row['Tổng đã đóng'],
+        row['Còn thiếu'],
         row['Trạng thái'], row['Ghi chú']
       ]);
     });
 
     const finalWs = XLSX.utils.aoa_to_sheet(finalAoA);
-    this.autoFitColumns(finalWs, dataRows, ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Tổng HP', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Trạng thái', 'Ghi chú']);
+    this.autoFitColumns(finalWs, dataRows, ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Tổng HP', 'Nợ cũ', 'Tổng phải thu', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Còn thiếu', 'Trạng thái', 'Ghi chú']);
     
     XLSX.utils.book_append_sheet(wb, finalWs, 'BÁO CÁO ĐỐI SOÁT');
     

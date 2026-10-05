@@ -80,12 +80,19 @@ REPORT_ROW: {
   fullName: String,
   className: String,
   teacher: String,
-  tongHocPhi: Number,
-  chuyenKhoanVTB: Number,  // VietinBank
+  tongHocPhi: Number,      // HP tháng này (KHÔNG gồm nợ cũ — Tab 3/4 đọc cột này)
+  chuyenKhoanVTB: Number,  // VietinBank transfer amount
   tienMat: Number,
-  chuyenKhoanTPB: Number,  // TPBank
+  chuyenKhoanTPB: Number,  // TPBank transfer
   tongDaDong: Number,
-  trangThai: String,       // "Đã đóng" | "Chưa đóng" | "Đóng thiếu" | "Đóng dư"
+  // --- Nợ cũ (tháng trước) ---
+  noCu: Number,            // Nợ đầu kỳ (từ file chốt / dán tay)
+  tongPhaiThu: Number,     // = noCu + tongHocPhi
+  conThieu: Number,        // = tongPhaiThu - tongDaDong (floor 0)
+  daTraNo: Number,         // phần tiền đã trừ vào nợ cũ
+  noCuConLai: Number,      // nợ cũ còn lại chưa trả
+  hocPhiIsDefault: Boolean, // true = ô HP trống, app đoán 800k → tô vàng
+  trangThai: String,       // "Đã đóng" | "Chưa đóng" | "Đóng thiếu" | "Đóng dư" | "📦 Đã đóng gói"
   soTienThieu: Number,
   ghiChu: String,
   ghiChuGiaDinh: String,
@@ -140,7 +147,8 @@ const APP_CONFIG = {
     SETTINGS: 'joy_settings',
     FAMILY_GROUPS: 'joy_family_groups',
     PREV_MONTH_PAYMENTS: 'joy_prev_month_payments',
-    PACKAGES: 'joy_packages'
+    PACKAGES: 'joy_packages',
+    PRIOR_DEBT: 'joy_prior_debt' // Nợ chốt tháng trước: {monthYear, rows:[{mshs,fullName,className,amount}]}
   },
 
   // Default hoc phi

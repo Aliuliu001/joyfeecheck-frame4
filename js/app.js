@@ -92,7 +92,8 @@ function appComponent() {
       className: 'all',
       teacher: 'all',
       searchText: '',
-      cashflowSource: 'all'
+      cashflowSource: 'all',
+      onlyDebt: false // chỉ hiện bạn còn nợ cũ
     },
     reportClassOptions: [],
     reportTeacherOptions: [],
@@ -102,6 +103,9 @@ function appComponent() {
     referralAlerts: [],
     historyData: [],
     filteredReportRows: [],
+    // Nợ cũ tháng trước (Bước 1): dán 4 cột MSHS|Họ tên|Lớp|Số thiếu
+    priorDebtText: '',
+    priorDebtRows: [],
     
     // Accounting UI
     activeAccTab: 'acc-tab1',
@@ -251,6 +255,14 @@ function appComponent() {
       // Load UI settings
       this.loadSettingsUI();
       this.ignoredKeys = window.Storage._get('joy_ignored_tx') || [];
+      // Nợ cũ: nạp lại lần trước đã lưu
+      try {
+        const savedDebt = window.Storage.loadPriorDebt ? window.Storage.loadPriorDebt() : null;
+        if (savedDebt && savedDebt.rows && savedDebt.rows.length) {
+          this.priorDebtRows = savedDebt.rows;
+          this.priorDebtText = savedDebt.rows.map(r => [r.mshs, r.fullName || '', r.className || '', r.amount].join('\t')).join('\n');
+        }
+      } catch (e) { console.error('Prior debt load error:', e); }
       // P1-3: nạp lại Tab7 Tổng hợp đã lưu từ lần trước
       try {
         const savedTab7 = window.Storage._get('joy_acc_tab7_rows', []);
@@ -502,8 +514,52 @@ function appComponent() {
         overpaidCount: s.dongDu || 0,
         packageCount: s.dongGoi || 0,
         totalMoney: s.tongThu || 0,
-        totalFee: s.tongHocPhi || 0
+        totalFee: s.tongHocPhi || 0,
+        totalDebt: s.tongNoCu || 0,
+        debtCollected: s.noCuDaThu || 0,
+        totalReceivable: s.tongPhaiThu || 0,
+        stillMissing: s.conThieu || 0
       };
+    },
+
+    // Nợ cũ: dán 4 cột MSHS | Họ tên | Lớp | Số thiếu (tab hoặc | hoặc ,)
+    savePriorDebt() {
+      const raw = (this.priorDebtText || '').trim();
+      if (!raw) { this.showToast('⚠️ Chưa dán danh sách nợ', 'warning'); return; }
+      const rows = [];
+      const lines = raw.split(/\r?\n/);
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t) continue;
+        // Bỏ dòng tiêu đề
+        if (/mshs/i.test(t) && /thiếu|thieu|tiền|số/i.test(t)) continue;
+        const parts = t.split(/\t|\||;|,/).map(s => s.trim()).filter(s => s !== '');
+        if (parts.length < 1) continue;
+        const mshs = (parts[0] || '').toUpperCase();
+        if (!mshs || /^HV?0*$/.test(mshs)) continue;
+        // Số thiếu = cụm số cuối cùng trong dòng
+        let amount = 0;
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const n = window.Utils ? window.Utils.parseNumber(parts[i]) : Number(String(parts[i]).replace(/[^0-9]/g, '')) || 0;
+          if (n > 0) { amount = n; break; }
+        }
+        if (amount <= 0) continue;
+        rows.push({ mshs, fullName: parts[1] || '', className: parts[2] || '', amount });
+      }
+      if (!rows.length) { this.showToast('❌ Không đọc được dòng nào (cần MSHS + Số thiếu)', 'error'); return; }
+      const state = this.$store.appState;
+      window.Storage.savePriorDebt(state.monthYear, rows);
+      this.priorDebtRows = rows;
+      this.showToast(`✅ Đã lưu nợ ${rows.length} bạn`, 'success');
+      if (state.matchingDone) this.runMatching();
+    },
+    clearPriorDebtUI() {
+      window.Storage.clearPriorDebt && window.Storage.clearPriorDebt();
+      this.priorDebtRows = [];
+      this.priorDebtText = '';
+      this.showToast('🗑️ Đã xóa nợ cũ', 'success');
+      const state = this.$store.appState;
+      if (state.matchingDone) this.runMatching();
     },
 
     applyFilters() {
@@ -515,6 +571,29 @@ function appComponent() {
         teacher: this.filters.teacher,
         searchText: this.filters.searchText
       });
+      // Lọc nhanh: chỉ bạn còn nợ cũ
+      if (this.filters.onlyDebt) {
+        this.filteredReportRows = (this.filteredReportRows || []).filter(r => (r.noCuConLai || 0) > 0);
+      }
+    },
+
+    // Nợ khó đòi: có nợ cũ nhưng không còn trong DS tổng (nghỉ học) → tách sổ riêng
+    get badDebtRows() {
+      const state = this.$store.appState;
+      let debtMap = new Map();
+      try { debtMap = window.Storage.getPriorDebtMap ? window.Storage.getPriorDebtMap() : new Map(); } catch (e) { debtMap = new Map(); }
+      if (!debtMap || debtMap.size === 0) return [];
+      const inMaster = new Set((state.students || []).map(s => (s.mshs || '').toUpperCase()));
+      const saved = (window.Storage.loadPriorDebt ? window.Storage.loadPriorDebt() : null) || {};
+      const infoMap = new Map(((saved && saved.rows) || []).map(r => [(r.mshs || '').toUpperCase(), r]));
+      const out = [];
+      for (const [mshs, amount] of debtMap) {
+        if (!inMaster.has(mshs)) {
+          const info = infoMap.get(mshs) || {};
+          out.push({ mshs, fullName: info.fullName || '', className: info.className || '', amount });
+        }
+      }
+      return out.sort((a, b) => a.mshs.localeCompare(b.mshs));
     },
 
     // Nạp danh sách Lớp + GV vào 2 ô lọc (bản cũ có, bản Alpine làm rơi)

@@ -1,6 +1,30 @@
 # 🐛 BUGS — Đã fix & Known Issues
 
-> Cập nhật: 04/08/2026
+> Cập nhật: 05/10/2026 (frame4 — Nợ cũ tháng trước, đợt 1)
+> Toàn bộ code mới chỉ làm trên repo frame4, không đụng frame3.
+
+---
+
+## 🆕 ĐỢT 1 — Nợ cũ tháng trước (05/10/2026)
+
+| # | Vấn đề | Cách sửa | Trạng thái |
+|---|--------|----------|------------|
+| N01 | CK tháng 10 trả nợ T9 bị tính nhầm thành HP T10 | Luật mới: tiền về trả nợ cũ trước, còn dư mới trả HP tháng này, dư nữa là tiền sách (không tự cấn sang tháng sau). Thêm 3 cột `Nợ cũ \| Tổng phải thu \| Còn thiếu` ở tab Báo cáo Đối soát | ✅ đã code + test 6 case |
+| N02 | Tên tháng kết thúc gói hiển thị lệch 1 tháng (tính tiền vẫn đúng) | Sửa `confirmPackage()` | ⬜ Bước 4 |
+| N03 | Thiếu nút "đóng 1 cục 1.6tr → chuyển thành gói 2 tháng" | Thêm nút gợi ý khi phát hiện đóng gấp 2 lần HP | ⬜ Bước 4 |
+| N04 | Không biết bạn nào đang ăn HP mặc định 800k (ô trống) | Đánh dấu `hocPhiIsDefault` lúc import; tô vàng ô Tổng HP trong app + Excel; ghi chú "HP mặc định — kiểm tra lại" | ✅ đã code |
+| N05 | Tab 3-4 (Giảm bớt / Stop) phải đọc HP tháng này, không đọc gộp nợ | Giữ `tongHocPhi` = HP tháng này; nợ nằm cột riêng `noCu` | ✅ đã code đúng |
+
+### Quy ước đã chốt với Ngọc (đợt nợ cũ)
+
+- File nợ 4 cột: `MSHS | Họ tên | Lớp | Số thiếu` — chỉ MSHS + Số thiếu bắt buộc.
+- Bé mới HP lẻ (200k/300k/500k): app lấy đúng số trong file tổng, không cần code thêm.
+- Vàng = ô HP trống nên app đoán 800k, cần kiểm tra lại. Bé cũ ghi 800k thật thì không vàng.
+- Tiền dư = tiền sách, không tự cấn sang tháng sau.
+- Đóng 2 tháng 1 lần → chuyển thành "Đóng gói".
+- Bạn nghỉ học (không còn trong DS tổng): nợ tách ra "Nợ khó đòi", không cộng vào bảng chính, không đòi.
+- Có gói mà vẫn nợ cũ → gói chỉ bao HP tháng này, nợ cũ vẫn phải trả.
+- Test 6 case 05/10: trả đúng nợ ✅, trả 1 phần ✅, trả dư ✅, nhà 2 anh em 1 người nợ ✅, bé mới HP lẻ ✅, gói + nợ ✅.
 
 ---
 

@@ -92,11 +92,16 @@ window.Importer = {
 
         let hocPhiVal = Utils.parseNumber(document.getElementById('default-fee')?.value) || APP_CONFIG.DEFAULT_HOC_PHI;
         const hocPhiRaw = row[colMap.hocPhi];
-        if (hocPhiRaw !== undefined) {
+        // Đánh dấu ô HP trống → app đoán số mặc định (để tô vàng kiểm tra lại)
+        let hocPhiIsDefault = false;
+        if (hocPhiRaw !== undefined && hocPhiRaw !== null && String(hocPhiRaw).trim() !== '') {
             const parsed = Utils.parseNumber(hocPhiRaw);
             // Cho phép HP = 0 (miễn phí) hoặc HP > 0 (giảm/miễn)
             // Chỉ dùng default nếu cột HP trống hoặc không parse được
             if (!isNaN(parsed)) hocPhiVal = parsed;
+            else hocPhiIsDefault = true;
+        } else {
+          hocPhiIsDefault = true;
         }
 
         const student = {
@@ -110,6 +115,7 @@ window.Importer = {
           stkPH: colMap.stkPH >= 0 ? Utils.normalizeSTK(row[colMap.stkPH]) : '',
           tenTK: colMap.tenTK >= 0 ? (row[colMap.tenTK] || '').toString().trim() : '',
           hocPhi: hocPhiVal,
+          hocPhiIsDefault: hocPhiIsDefault,
           ghiChuGiaDinh: colMap.ghiChu >= 0 ? (row[colMap.ghiChu] || '').toString().trim() : '',
           diaChi: colMap.diaChi >= 0 ? (row[colMap.diaChi] || '').toString().trim() : ''
         };

@@ -14,6 +14,14 @@ window.Reporter = {
     const reportRows = [];
     const grouped = new Map();
 
+    // Nợ cũ đầu kỳ (MSHS -> số tiền). Chỉ MSHS + số tiền dùng để tính.
+    let priorDebtMap = new Map();
+    try {
+      if (window.Storage && window.Storage.getPriorDebtMap) {
+        priorDebtMap = window.Storage.getPriorDebtMap() || new Map();
+      }
+    } catch (e) { priorDebtMap = new Map(); }
+
     // Group student rows by MSHS
     for (const student of students) {
       if (!grouped.has(student.mshs)) {
@@ -88,7 +96,8 @@ window.Reporter = {
       let familyNote = '';
 
       if (familyGroup) {
-        // Calculate family total fee
+        // Chia tiền nhà theo HP tháng này (giữ nguyên cách cũ).
+        // Nợ cũ trừ ở từng bạn sau (daTraNo) — nhà có bạn nợ thì phần được chia trả nợ trước.
         let familyTotalFee = 0;
         const familyStudentFees = {};
         for (const fmshs of familyGroup.members) {
@@ -143,17 +152,46 @@ window.Reporter = {
         };
       }
 
+      // Nợ cũ đầu kỳ của bạn này (chỉ tính khi còn trong DS tổng — bạn nghỉ tự rớt ra)
+      const noCu = priorDebtMap.get((mshs || '').toUpperCase()) || 0;
+      const hocPhiIsDefault = classRows.some(r => r.hocPhiIsDefault);
+
       // Check if student has active package
       const packageInfo = Storage.isPackageActive(mshs, monthYear);
       let trangThai = '';
       let soTienThieu = 0;
-      
-      // Học sinh miễn phí (HP = 0)
-      if (tongHocPhi === 0) {
+
+      // Luật chia tiền: trả NỢ CŨ trước, còn dư mới trả HP tháng này, dư nữa là tiền sách
+      const tongPhaiThu = noCu + tongHocPhi;
+      const daTraNo = Math.min(adjustedPayment, noCu);
+      const noCuConLai = noCu - daTraNo;
+      let conThieu = Math.max(0, tongPhaiThu - adjustedPayment);
+
+      // Học sinh miễn phí (HP = 0 và không nợ)
+      if (tongHocPhi === 0 && noCu === 0) {
         trangThai = 'MIỄN PHÍ';
       } else if (packageInfo.active) {
-        // Student has paid via package
-        trangThai = APP_CONFIG.STATUS.PACKAGE;
+        // Gói chỉ bao HP tháng này, KHÔNG xóa nợ cũ
+        if (noCuConLai === 0) {
+          trangThai = APP_CONFIG.STATUS.PACKAGE;
+          soTienThieu = 0;
+          conThieu = 0;
+        } else {
+          trangThai = APP_CONFIG.STATUS.PARTIAL;
+          soTienThieu = noCuConLai;
+          conThieu = noCuConLai;
+        }
+      } else if (noCu > 0) {
+        // Có nợ cũ → so với TỔNG phải thu (nợ + HP)
+        if (adjustedPayment >= tongPhaiThu && tongPhaiThu > 0) {
+          trangThai = adjustedPayment > tongPhaiThu ? APP_CONFIG.STATUS.OVERPAID : APP_CONFIG.STATUS.PAID;
+        } else if (adjustedPayment > 0 && adjustedPayment < tongPhaiThu) {
+          trangThai = APP_CONFIG.STATUS.PARTIAL;
+          soTienThieu = conThieu;
+        } else if (adjustedPayment === 0) {
+          trangThai = APP_CONFIG.STATUS.UNPAID;
+          soTienThieu = tongPhaiThu;
+        }
       } else if (adjustedPayment >= tongHocPhi && tongHocPhi > 0) {
         trangThai = adjustedPayment > tongHocPhi ? APP_CONFIG.STATUS.OVERPAID : APP_CONFIG.STATUS.PAID;
       } else if (adjustedPayment > 0 && adjustedPayment < tongHocPhi) {
@@ -177,6 +215,22 @@ window.Reporter = {
         const discountAmount = Math.floor(tongHocPhi * discountPercent / 100);
         notes.push(`📦 Đã đóng gói: ${packageInfo.packageName} (${packageInfo.startMonth} → ${packageInfo.endMonth})${discountPercent > 0 ? ` — Giảm ${discountPercent}% (${Utils.formatCurrency(discountAmount)}/tháng)` : ''}`);
         if (packageInfo.expiring) notes.push(`⏰ Gói hết đúng tháng này → tháng sau thu HP bình thường`);
+      }
+
+      // 0. Nợ cũ tháng trước
+      if (noCu > 0) {
+        if (noCuConLai === 0) {
+          notes.push(`✅ Đã hết nợ cũ (${Utils.formatCurrency(noCu)})`);
+        } else if (daTraNo > 0) {
+          notes.push(`⚠️ Còn nợ cũ ${Utils.formatCurrency(noCuConLai)} (đã trả ${Utils.formatCurrency(daTraNo)}/${Utils.formatCurrency(noCu)})`);
+        } else {
+          notes.push(`❌ Còn nợ cũ ${Utils.formatCurrency(noCu)}`);
+        }
+      }
+
+      // 0.5b. HP đoán mặc định (ô trống) → nhắc kiểm tra, nhất là bé mới HP lẻ
+      if (hocPhiIsDefault && tongHocPhi > 0) {
+        notes.push(`⚠️ HP mặc định (ô trống) — kiểm tra lại`);
       }
 
       // 0.5. Điều chỉnh học phí
@@ -223,7 +277,13 @@ window.Reporter = {
         className: classes.join(', '),
         teacher: teachers.join(', '),
         phone: primaryRow.phone || '',
-        tongHocPhi: tongHocPhi,
+        tongHocPhi: tongHocPhi, // HP tháng này — Tab 3/4 đọc cột này, KHÔNG gồm nợ
+        noCu: noCu,
+        tongPhaiThu: tongPhaiThu,
+        conThieu: conThieu,
+        daTraNo: daTraNo,
+        noCuConLai: noCuConLai,
+        hocPhiIsDefault: hocPhiIsDefault,
         chuyenKhoanVTB: paymentData.vtb,
         tienMat: paymentData.cash,
         chuyenKhoanTPB: paymentData.tpb,
@@ -256,12 +316,20 @@ window.Reporter = {
       dongDu: 0,
       dongGoi: 0,
       tongThu: 0,
-      tongHocPhi: 0
+      tongHocPhi: 0,
+      tongNoCu: 0,      // tổng nợ đầu kỳ
+      noCuDaThu: 0,     // nợ cũ thu được trong tháng
+      tongPhaiThu: 0,   // nợ + HP
+      conThieu: 0       // còn thiếu gồm cả nợ
     };
 
     for (const row of reportRows) {
       stats.tongThu += (row.tongDaDong || 0);
       stats.tongHocPhi += (row.tongHocPhi || 0);
+      stats.tongNoCu += (row.noCu || 0);
+      stats.noCuDaThu += (row.daTraNo || 0);
+      stats.tongPhaiThu += (row.tongPhaiThu || 0);
+      stats.conThieu += (row.conThieu || 0);
       
       switch (row.trangThai) {
         case APP_CONFIG.STATUS.PAID:

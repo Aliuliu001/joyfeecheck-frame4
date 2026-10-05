@@ -198,6 +198,28 @@
                  hidden>
           <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">File Excel Kế toán (2 sheet: DS Thực tế + DS Ghi HĐ). Dùng để so sánh: ai tăng/giảm so với tháng này.</p>
         </div>
+
+        <!-- Nợ chốt tháng trước: dán 4 cột MSHS | Họ tên | Lớp | Số thiếu -->
+        <div class="drop-zone card glass-card"
+             :class="{ 'success': (priorDebtRows && priorDebtRows.length > 0) }"
+             style="border-color: rgba(244,67,54,0.3);">
+          <div class="drop-icon">🧾</div>
+          <h4>🧾 Nợ chốt tháng trước</h4>
+          <p class="status-text" :class="(priorDebtRows && priorDebtRows.length > 0) ? 'success' : 'warning'">
+            <span x-show="!(priorDebtRows && priorDebtRows.length > 0)">Chưa có (ai không nợ thì khỏi dán)</span>
+            <span x-show="priorDebtRows && priorDebtRows.length > 0">✅ <span x-text="priorDebtRows.length"></span> bạn nợ</span>
+          </p>
+          <textarea x-model="priorDebtText"
+                    rows="4"
+                    placeholder="Dán 4 cột từ Trang tính: MSHS | Họ tên | Lớp | Số thiếu&#10;VD: HV011 | Nguyễn Văn A | S2.001 | 800000"
+                    style="width: 100%; font-size: 12px; border-radius: 8px; padding: 8px;"
+                    @click.stop></textarea>
+          <div style="display: flex; gap: 8px; margin-top: 8px;" @click.stop>
+            <button class="btn btn-sm btn-primary" @click="savePriorDebt()">💾 Lưu nợ</button>
+            <button class="btn btn-sm btn-outline" @click="clearPriorDebtUI()" x-show="priorDebtRows && priorDebtRows.length > 0">🗑️ Xóa</button>
+          </div>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Tháng 10 dán 1 lần từ file chốt 30.09. Từ tháng 11 app tự nhớ sau khi bạn bấm "Chốt nợ". Chỉ MSHS + Số thiếu là bắt buộc.</p>
+        </div>
       </div>
 
       <div class="action-panel">
@@ -412,6 +434,42 @@
         <div class="filter-group">
           <button class="btn btn-sm btn-outline" @click="runMatching()">🔄 Refresh</button>
         </div>
+        <div class="filter-group">
+          <label style="font-size: 13px; display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" x-model="filters.onlyDebt" @change="applyFilters()"> 🧾 Chỉ bạn còn nợ cũ
+          </label>
+        </div>
+      </div>
+
+      <div class="summary-cards" x-show="(reportStats.totalDebt || 0) > 0" style="margin-top: 12px;">
+        <div class="summary-card card warning">
+          <div class="card-top">
+            <span class="card-icon">🧾</span>
+            <span class="card-value" x-text="$formatCurrency(reportStats.totalDebt || 0)"></span>
+          </div>
+          <div class="card-label">Nợ cũ đầu kỳ</div>
+        </div>
+        <div class="summary-card card success">
+          <div class="card-top">
+            <span class="card-icon">✅</span>
+            <span class="card-value" x-text="$formatCurrency(reportStats.debtCollected || 0)"></span>
+          </div>
+          <div class="card-label">Nợ cũ thu được</div>
+        </div>
+        <div class="summary-card card error">
+          <div class="card-top">
+            <span class="card-icon">⚠️</span>
+            <span class="card-value" x-text="$formatCurrency(reportStats.stillMissing || 0)"></span>
+          </div>
+          <div class="card-label">Còn thiếu (gồm nợ)</div>
+        </div>
+      </div>
+
+      <div class="card glass-card" x-show="(badDebtRows || []).length > 0" style="margin-top: 12px; border-color: rgba(244,67,54,0.3);">
+        <div style="font-weight: 700; margin-bottom: 8px;">🗂️ Nợ khó đòi — bạn nghỉ học (không cộng vào bảng chính): <span x-text="badDebtRows.length"></span> bạn</div>
+        <template x-for="(b, i) in badDebtRows" :key="'bad-'+b.mshs">
+          <div style="font-size: 13px;">• <span x-text="b.mshs"></span> — <span x-text="b.fullName"></span> (<span x-text="b.className"></span>): <span x-text="$formatCurrency(b.amount)"></span></div>
+        </template>
       </div>
 
       <div class="table-container card glass-card mt-4" style="padding: 12px;">
@@ -424,10 +482,13 @@
               <th style="padding: 10px 8px;">Lớp</th>
               <th style="padding: 10px 8px;">GV</th>
               <th style="padding: 10px 8px;">Tổng HP</th>
+              <th style="padding: 10px 8px;">Nợ cũ</th>
+              <th style="padding: 10px 8px;">Tổng phải thu</th>
               <th style="padding: 10px 8px;">VietinBank</th>
               <th style="padding: 10px 8px;">Tiền mặt</th>
               <th style="padding: 10px 8px;">TPBank</th>
               <th style="padding: 10px 8px;">Tổng đã đóng</th>
+              <th style="padding: 10px 8px;">Còn thiếu</th>
               <th style="padding: 10px 8px;">Nguồn CK</th>
               <th style="padding: 10px 8px;">Trạng thái</th>
               <th style="padding: 10px 8px; min-width: 180px;">Ghi chú</th>
@@ -456,11 +517,14 @@
                 <td style="font-weight: 600;" x-text="row.fullName"></td>
                 <td x-text="row.className"></td>
                 <td x-text="row.teacher"></td>
-                <td class="col-amount" x-text="$formatCurrency(row.tongHocPhi)"></td>
+                <td class="col-amount" :style="row.hocPhiIsDefault ? 'background: #FFF3CD; font-weight: 700;' : ''" :title="row.hocPhiIsDefault ? 'Ô HP trống — app đoán, bạn kiểm tra lại' : ''" x-text="$formatCurrency(row.tongHocPhi)"></td>
+                <td class="col-amount" x-text="$formatCurrency(row.noCu || 0)"></td>
+                <td class="col-amount" style="font-weight: 700;" x-text="$formatCurrency(row.tongPhaiThu || row.tongHocPhi)"></td>
                 <td class="col-amount" x-text="$formatCurrency(row.chuyenKhoanVTB)"></td>
                 <td class="col-amount" x-text="$formatCurrency(row.tienMat)"></td>
                 <td class="col-amount" x-text="$formatCurrency(row.chuyenKhoanTPB)"></td>
                 <td class="col-amount" style="font-weight: 700; color: var(--primary);" x-text="$formatCurrency(row.tongDaDong)"></td>
+                <td class="col-amount" style="font-weight: 700; color: #C62828;" x-text="$formatCurrency(row.conThieu || 0)"></td>
                 <td @click="showNguonCKDetail(row)" style="cursor: pointer;" title="Click để xem chi tiết" x-html="getNguonCK(row)"></td>
                 <td>
                   <span class="status-badge" :class="getStatusBadge(row.trangThai)" x-text="row.trangThai"></span>

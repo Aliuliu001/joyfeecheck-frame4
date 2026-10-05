@@ -425,6 +425,35 @@ window.Storage = {
     return list.filter(s => s.monthYear === monthYear);
   },
 
+  // ========================
+  // NỢ CŨ THÁNG TRƯỚC (Bước 1: dán 4 cột MSHS|Họ tên|Lớp|Số thiếu)
+  // ========================
+  // rows: [{mshs, fullName, className, amount}] — chỉ MSHS + amount bắt buộc
+  savePriorDebt: function(monthYear, rows) {
+    return this._set(APP_CONFIG.STORAGE_KEYS.PRIOR_DEBT, {
+      monthYear: monthYear || '',
+      rows: rows || [],
+      savedDate: new Date().toISOString()
+    });
+  },
+  loadPriorDebt: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.PRIOR_DEBT, null);
+  },
+  // Map MSHS -> số nợ (uppercase key)
+  getPriorDebtMap: function() {
+    const saved = this.loadPriorDebt();
+    const map = new Map();
+    for (const r of ((saved && saved.rows) || [])) {
+      const mshs = (r.mshs || '').toString().trim().toUpperCase();
+      const amt = Number(r.amount) || 0;
+      if (mshs && amt > 0) map.set(mshs, amt);
+    }
+    return map;
+  },
+  clearPriorDebt: function() {
+    return this._set(APP_CONFIG.STORAGE_KEYS.PRIOR_DEBT, null);
+  },
+
   // BACKUP & RESTORE
   exportFullBackup: function() {
     const backup = {};
