@@ -262,6 +262,18 @@ function appComponent() {
           this.priorDebtRows = savedDebt.rows;
           this.priorDebtText = savedDebt.rows.map(r => [r.mshs, r.fullName || '', r.className || '', r.amount].join('\t')).join('\n');
         }
+        // Sang tháng mới mà chưa có nợ → tự lấy file chốt tháng trước (khỏi dán tay)
+        const cur = this.$store.appState.monthYear || '';
+        if (cur && (!this.priorDebtRows || !this.priorDebtRows.length) && window.Storage.prevMonth && window.Storage.loadClosingDebt) {
+          const pm = window.Storage.prevMonth(cur);
+          const closed = pm ? window.Storage.loadClosingDebt(pm) : null;
+          if (closed && closed.rows && closed.rows.length) {
+            window.Storage.savePriorDebt(cur, closed.rows);
+            this.priorDebtRows = closed.rows;
+            this.priorDebtText = closed.rows.map(r => [r.mshs, r.fullName || '', r.className || '', r.amount].join('\t')).join('\n');
+            setTimeout(() => this.showToast(`📌 Đã tự lấy nợ chốt T${pm} (${closed.rows.length} bạn)`, 'success'), 800);
+          }
+        }
       } catch (e) { console.error('Prior debt load error:', e); }
       // P1-3: nạp lại Tab7 Tổng hợp đã lưu từ lần trước
       try {
@@ -560,6 +572,55 @@ function appComponent() {
       this.showToast('🗑️ Đã xóa nợ cũ', 'success');
       const state = this.$store.appState;
       if (state.matchingDone) this.runMatching();
+    },
+
+    // Bước 3: Chốt nợ cuối tháng — lấy ai còn thiếu làm nợ đầu kỳ tháng sau + xuất file
+    closeDebtUI() {
+      const state = this.$store.appState;
+      if (!state.matchingDone || !(state.reportRows || []).length) {
+        this.showToast('⚠️ Chưa đối soát — bấm "Bắt đầu đối soát" trước', 'warning');
+        return;
+      }
+      const month = state.monthYear || '';
+      const rows = (state.reportRows || [])
+        .filter(r => (r.conThieu || 0) > 0)
+        .map(r => ({ mshs: r.mshs, fullName: r.fullName || '', className: r.className || '', amount: r.conThieu }));
+      const bad = (this.badDebtRows || []).map(b => ({ mshs: b.mshs, fullName: b.fullName || '', className: b.className || '', amount: b.amount }));
+      const all = rows.concat(bad.filter(b => !rows.some(r => r.mshs === b.mshs)));
+      window.Storage.saveClosingDebt(month, all);
+      // Tự nhớ cho tháng sau: sang tháng mới app lấy luôn, khỏi dán tay
+      const nm = window.Storage.nextMonth ? window.Storage.nextMonth(month) : '';
+      if (nm) window.Storage.savePriorDebt(nm, all);
+      window.Exporter.exportClosingDebt(all, month);
+      this.showToast(all.length ? `✅ Đã chốt nợ T${month} (${all.length} bạn) → tự nhớ cho tháng ${nm}` : `✅ Tháng ${month} không ai nợ`, 'success');
+    },
+
+    // Gợi ý gói 2 tháng: không nợ cũ, đóng gấp 2 lần HP trở lên (VD 1.6tr cho HP 800k)
+    get doublePayRows() {
+      const state = this.$store.appState;
+      return (state.reportRows || []).filter(r =>
+        !(r.noCu > 0) && (r.tongHocPhi || 0) > 0 && (r.tongDaDong || 0) >= 2 * (r.tongHocPhi || 0)
+        && !(window.Storage.isPackageActive && window.Storage.isPackageActive(r.mshs, state.monthYear).active)
+      );
+    },
+    // 1 chạm: chuyển bạn đóng 1 cục thành gói 2 tháng (tháng này + tháng sau)
+    makePackage2Months(mshs) {
+      const state = this.$store.appState;
+      const row = (state.reportRows || []).find(r => r.mshs === mshs);
+      if (!row) return;
+      const month = state.monthYear || '';
+      const nm = window.Storage.nextMonth ? window.Storage.nextMonth(month) : '';
+      window.Storage.addPackage({
+        packageName: `Gói 2 tháng ${mshs}`,
+        members: [mshs],
+        months: 2,
+        startMonth: month,
+        endMonth: nm,
+        discountPercent: 0
+      });
+      this.loadSettingsUI();
+      this.runMatching();
+      this.showToast(`✅ ${mshs} → gói 2 tháng (${month} → ${nm})`, 'success');
     },
 
     applyFilters() {
@@ -1048,7 +1109,8 @@ function appComponent() {
       if (!/^\d{4}-\d{2}$/.test(startMonth)) { this.showToast('⚠️ Tháng bắt đầu phải dạng YYYY-MM (VD: 2026-08)', 'error'); return; }
       const discountPercent = parseFloat(this.packageForm.discountPercent || '0') || 0;
       const [sy, sm] = startMonth.split('-').map(Number);
-      const endD = new Date(sy, sm - 1 + months);
+      // Tháng kết thúc = tháng bắt đầu + số tháng - 1 (VD gói 2 tháng từ T9 → hết T10)
+      const endD = new Date(sy, sm - 1 + months - 1);
       const endMonth = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}`;
       window.Storage.addPackage({ packageName, members, months, startMonth, endMonth, discountPercent });
       window.Storage.addHistory && window.Storage.addHistory({ action: 'Thêm gói học phí', detail: `${packageName}: ${members.join(', ')} (${months} tháng, giảm ${discountPercent}%)` });

@@ -740,5 +740,25 @@ window.Exporter = {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'STK_PHU');
     const filename = `STK_PHU_moi_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.xlsx`;
     this.triggerDownload(wb, filename);
+  },
+
+  /**
+   * (C) Xuất file chốt nợ cuối tháng — 4 cột MSHS | Họ tên | Lớp | Số thiếu.
+   * Ngọc giữ file này, tháng sau dán lại vào ô "Nợ chốt tháng trước".
+   */
+  exportClosingDebt: function(rows, closingMonth) {
+    const wb = XLSX.utils.book_new();
+    const label = (closingMonth || '').includes('-') ? closingMonth.split('-').reverse().join('.') : (closingMonth || '');
+    const aoa = [['MSHS', 'Họ tên', 'Lớp', 'Số còn thiếu']];
+    (rows || []).forEach(r => {
+      aoa.push([r.mshs || '', r.fullName || '', r.className || '', r.amount || 0]);
+    });
+    if (!rows || !rows.length) aoa.push(['(không ai nợ)', '', '', 0]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    this.autoFitColumns(ws, null, ['MSHS', 'Họ tên', 'Lớp', 'Số còn thiếu']);
+    XLSX.utils.book_append_sheet(wb, ws, 'CHOT_NO');
+    const filename = `ChotNo_${(closingMonth || '').replace(/-/g, '')}.xlsx`;
+    this.triggerDownload(wb, filename);
+    void label;
   }
 };

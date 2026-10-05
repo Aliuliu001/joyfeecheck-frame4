@@ -148,7 +148,8 @@ const APP_CONFIG = {
     FAMILY_GROUPS: 'joy_family_groups',
     PREV_MONTH_PAYMENTS: 'joy_prev_month_payments',
     PACKAGES: 'joy_packages',
-    PRIOR_DEBT: 'joy_prior_debt' // Nợ chốt tháng trước: {monthYear, rows:[{mshs,fullName,className,amount}]}
+    PRIOR_DEBT: 'joy_prior_debt', // Nợ chốt tháng trước: {sourceMonth, rows:[{mshs,fullName,className,amount}]}
+    CLOSING_DEBT: 'joy_closing_debt' // Nợ chốt cuối tháng: {'YYYY-MM': {rows, closedDate}}
   },
 
   // Default hoc phi

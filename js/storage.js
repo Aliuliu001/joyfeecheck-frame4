@@ -429,15 +429,19 @@ window.Storage = {
   // NỢ CŨ THÁNG TRƯỚC (Bước 1: dán 4 cột MSHS|Họ tên|Lớp|Số thiếu)
   // ========================
   // rows: [{mshs, fullName, className, amount}] — chỉ MSHS + amount bắt buộc
+  // monthYear = tháng đối soát HIỆN TẠI đang dán nợ cho (VD đang làm T10 thì dán nợ T9)
   savePriorDebt: function(monthYear, rows) {
     return this._set(APP_CONFIG.STORAGE_KEYS.PRIOR_DEBT, {
-      monthYear: monthYear || '',
+      forMonth: monthYear || '',
       rows: rows || [],
       savedDate: new Date().toISOString()
     });
   },
   loadPriorDebt: function() {
-    return this._get(APP_CONFIG.STORAGE_KEYS.PRIOR_DEBT, null);
+    const d = this._get(APP_CONFIG.STORAGE_KEYS.PRIOR_DEBT, null);
+    // Tương thích bản lưu cũ dùng key monthYear
+    if (d && !d.forMonth && d.monthYear) d.forMonth = d.monthYear;
+    return d;
   },
   // Map MSHS -> số nợ (uppercase key)
   getPriorDebtMap: function() {
@@ -452,6 +456,33 @@ window.Storage = {
   },
   clearPriorDebt: function() {
     return this._set(APP_CONFIG.STORAGE_KEYS.PRIOR_DEBT, null);
+  },
+  // Chốt nợ cuối tháng: lưu conThieu từng bạn còn trong DS tổng → làm nợ đầu kỳ tháng sau
+  // closingMonth 'YYYY-MM' = tháng vừa đối soát xong (VD '2026-10')
+  saveClosingDebt: function(closingMonth, rows) {
+    const all = this._get(APP_CONFIG.STORAGE_KEYS.CLOSING_DEBT, {});
+    all[closingMonth] = { rows: rows || [], closedDate: new Date().toISOString() };
+    return this._set(APP_CONFIG.STORAGE_KEYS.CLOSING_DEBT, all);
+  },
+  loadClosingDebt: function(closingMonth) {
+    const all = this._get(APP_CONFIG.STORAGE_KEYS.CLOSING_DEBT, {});
+    return all ? all[closingMonth] : null;
+  },
+  // Tháng kế tiếp dạng YYYY-MM (VD 2026-10 → 2026-11)
+  nextMonth: function(ym) {
+    const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+    if (!m) return '';
+    let y = Number(m[1]), mo = Number(m[2]) + 1;
+    if (mo > 12) { mo = 1; y++; }
+    return `${y}-${String(mo).padStart(2, '0')}`;
+  },
+  // Tháng trước đó dạng YYYY-MM (VD 2026-11 → 2026-10)
+  prevMonth: function(ym) {
+    const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+    if (!m) return '';
+    let y = Number(m[1]), mo = Number(m[2]) - 1;
+    if (mo < 1) { mo = 12; y--; }
+    return `${y}-${String(mo).padStart(2, '0')}`;
   },
 
   // BACKUP & RESTORE

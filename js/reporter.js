@@ -15,10 +15,15 @@ window.Reporter = {
     const grouped = new Map();
 
     // Nợ cũ đầu kỳ (MSHS -> số tiền). Chỉ MSHS + số tiền dùng để tính.
+    // Chỉ áp dụng khi nợ dán cho đúng tháng đang xem (tránh chốt T10 xong vẫn xem T10 bị lệch)
     let priorDebtMap = new Map();
     try {
       if (window.Storage && window.Storage.getPriorDebtMap) {
-        priorDebtMap = window.Storage.getPriorDebtMap() || new Map();
+        const saved = window.Storage.loadPriorDebt ? window.Storage.loadPriorDebt() : null;
+        const forMonth = saved ? (saved.forMonth || saved.monthYear || '') : '';
+        if (!forMonth || !monthYear || forMonth === monthYear) {
+          priorDebtMap = window.Storage.getPriorDebtMap() || new Map();
+        }
       }
     } catch (e) { priorDebtMap = new Map(); }
 

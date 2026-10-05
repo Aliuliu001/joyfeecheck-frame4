@@ -10,10 +10,12 @@
 | # | Vấn đề | Cách sửa | Trạng thái |
 |---|--------|----------|------------|
 | N01 | CK tháng 10 trả nợ T9 bị tính nhầm thành HP T10 | Luật mới: tiền về trả nợ cũ trước, còn dư mới trả HP tháng này, dư nữa là tiền sách (không tự cấn sang tháng sau). Thêm 3 cột `Nợ cũ \| Tổng phải thu \| Còn thiếu` ở tab Báo cáo Đối soát | ✅ đã code + test 6 case |
-| N02 | Tên tháng kết thúc gói hiển thị lệch 1 tháng (tính tiền vẫn đúng) | Sửa `confirmPackage()` | ⬜ Bước 4 |
-| N03 | Thiếu nút "đóng 1 cục 1.6tr → chuyển thành gói 2 tháng" | Thêm nút gợi ý khi phát hiện đóng gấp 2 lần HP | ⬜ Bước 4 |
+| N02 | Tên tháng kết thúc gói hiển thị lệch 1 tháng (tính tiền vẫn đúng) | Sửa `confirmPackage()`: endMonth = start + months − 1 (VD gói 2T từ T9 → hết T10) | ✅ đã code + test |
+| N03 | Thiếu nút "đóng 1 cục 1.6tr → chuyển thành gói 2 tháng" | Thêm gợi ý `doublePayRows` + nút 1 chạm `makePackage2Months` | ✅ đã code + test |
 | N04 | Không biết bạn nào đang ăn HP mặc định 800k (ô trống) | Đánh dấu `hocPhiIsDefault` lúc import; tô vàng ô Tổng HP trong app + Excel; ghi chú "HP mặc định — kiểm tra lại" | ✅ đã code |
 | N05 | Tab 3-4 (Giảm bớt / Stop) phải đọc HP tháng này, không đọc gộp nợ | Giữ `tongHocPhi` = HP tháng này; nợ nằm cột riêng `noCu` | ✅ đã code đúng |
+| N06 | Chốt nợ cuối tháng | Nút "Chốt nợ cuối tháng": lấy ai còn thiếu → lưu + tự nhớ cho tháng sau + xuất file ChotNo | ✅ đã code + test |
+| N07 | Nợ dán sai tháng (chốt T10 xong vẫn xem T10) | Chỉ tính nợ khi `forMonth` khớp tháng đang xem; sang tháng mới tự lấy chốt tháng trước | ✅ đã code + test |
 
 ### Quy ước đã chốt với Ngọc (đợt nợ cũ)
 
