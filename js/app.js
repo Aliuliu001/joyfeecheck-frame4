@@ -1418,29 +1418,40 @@ function appComponent() {
       const tagName = ['DS HĐ', 'DS CK VTB', 'Còn học/Quên CK', 'Stop', 'Tăng mới', 'CK sai', 'Tổng hợp'][tabNum - 1];
       
       let added = 0;
-      sourceData.forEach(row => {
-        if (!state.accountingData.tab7) state.accountingData.tab7 = [];
-        if (state.accountingData.tab7.some(existing => existing.mshs === row.mshs)) {
-          return;
-        }
-
-        const classes = (row.className || '').split(',').map(c => c.trim()).filter(Boolean);
+      const pushOne = (baseRow, mshsOne, fullNameOne, classOne, hpOne, noteOne) => {
+        if (state.accountingData.tab7.some(existing => existing.mshs === mshsOne)) return;
+        const classes = (classOne || '').split(',').map(c => c.trim()).filter(Boolean);
         const selectedClass = classes.length === 1 ? classes[0] : '';
-        
         if (!state.accTab7FilterTags.includes(tagName)) {
           state.accTab7FilterTags.push(tagName);
         }
         const newRow = {
-          ...row,
+          ...baseRow,
+          mshs: mshsOne,
+          fullName: fullNameOne,
+          className: classOne,
+          hocPhi: hpOne,
           sourceTab: tagName,
           classes: classes,
           selectedClass: selectedClass,
           selected: true
         };
-        newRow.ghiChu = row.ghiChu || '';
-        
+        newRow.ghiChu = noteOne || '';
         state.accountingData.tab7.push(newRow);
         added++;
+      };
+      sourceData.forEach(row => {
+        if (!state.accountingData.tab7) state.accountingData.tab7 = [];
+        // Tab 6 "Chuyển tiền sai": 1 dòng = cả nhà → tách mỗi bạn 1 dòng ở Tổng hợp
+        if (tabNum === 6 && row.memberDetails && row.memberDetails.length > 1) {
+          row.memberDetails.forEach(m => {
+            const s = ((state.students || []).find(x => (x.mshs || '').toUpperCase() === (m.mshs || '').toUpperCase())) || {};
+            pushOne(row, m.mshs, m.fullName || s.fullName || m.mshs, s.className || '', Number(state.defaultFee) || 0,
+              `Nhà ${(row.memberDetails || []).map(x => x.mshs).join(', ')} — được cấp ${Utils.formatCurrency(m.allocated || 0)}`);
+          });
+          return;
+        }
+        pushOne(row, row.mshs, row.fullName, row.className, row.hocPhi, row.ghiChu || '');
       });
       // Force Alpine reactivity for arrays
       state.accountingData.tab7 = [...state.accountingData.tab7];

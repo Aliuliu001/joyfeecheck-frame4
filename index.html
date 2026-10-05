@@ -1032,7 +1032,9 @@
                       </template>
                     </td>
                     <td>
-                      <input type="number" x-model.number="row.hocPhi" @change="saveAccTab7()" class="form-control" style="width: 100px; padding: 4px 6px;">
+                      <input type="number" x-model.number="row.hocPhi" @change="saveAccTab7()" class="form-control" style="width: 100px; padding: 4px 6px;"
+                             :style="Number(row.hocPhi) !== Number($store.appState.defaultFee) ? 'background: #FFF3CD; border: 2px solid #dc3545; font-weight: 700;' : ''"
+                             :title="Number(row.hocPhi) !== Number($store.appState.defaultFee) ? 'Học phí tự sửa — khác mặc định, kiểm tra lại' : ''">
                       <div x-show="row.hocPhi !== $store.appState.defaultFee" style="font-size: 0.7rem; color: #dc3545; margin-top: 4px; font-weight: bold;">⚠️ Khác mặc định</div>
                     </td>
                     <td>

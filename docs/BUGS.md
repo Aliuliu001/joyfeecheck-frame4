@@ -16,6 +16,9 @@
 | N05 | Tab 3-4 (Giảm bớt / Stop) phải đọc HP tháng này, không đọc gộp nợ | Giữ `tongHocPhi` = HP tháng này; nợ nằm cột riêng `noCu` | ✅ đã code đúng |
 | N06 | Chốt nợ cuối tháng | Nút "Chốt nợ cuối tháng": lấy ai còn thiếu → lưu + tự nhớ cho tháng sau + xuất file ChotNo | ✅ đã code + test |
 | N07 | Nợ dán sai tháng (chốt T10 xong vẫn xem T10) | Chỉ tính nợ khi `forMonth` khớp tháng đang xem; sang tháng mới tự lấy chốt tháng trước | ✅ đã code + test |
+| N08 | Tab 6 "Chuyển tiền sai" báo double 1 nhà thành 2 dòng | Lọc nhóm trùng y hệt thành viên (lỡ tay tạo 2 lần) → chỉ tính 1 lần | ✅ đã code + test |
+| N09 | Copy Tab 6 sang Tổng hợp gộp 2 anh em chung 1 dòng | Tách mỗi bạn 1 dòng, ghi chú "Nhà ... — được cấp ..." | ✅ đã code |
+| N10 | Ô HP tự sửa ở Tổng hợp chưa rõ | Tô vàng nền + viền đỏ ô HP khác mặc định | ✅ đã code |
 
 ### Quy ước đã chốt với Ngọc (đợt nợ cũ)
 

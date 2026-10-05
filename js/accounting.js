@@ -160,7 +160,15 @@ window.Accounting = {
     // ═══════════════════════════════════════════════════════════════
     const vtbAmt = vtbAmountByMSHS || new Map();
     const hpDef = hpDefault || APP_CONFIG.DEFAULT_HOC_PHI || 800000;
-    const groups = familyGroups || [];
+    // Chống double: 2 nhóm trùng y hệt thành viên (lỡ tay tạo 2 lần) → chỉ tính 1 lần
+    const seenFamilySig = new Set();
+    const groups = [];
+    for (const fg of (familyGroups || [])) {
+      const sig = ((fg.members || []).map(m => (m || '').toUpperCase()).sort().join('|'));
+      if (!sig || seenFamilySig.has(sig)) continue;
+      seenFamilySig.add(sig);
+      groups.push(fg);
+    }
 
     // Step 1: Build family membership map (mshs → familyGroup)
     const mshsToGroup = new Map();
