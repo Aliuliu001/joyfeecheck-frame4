@@ -609,8 +609,25 @@ function appComponent() {
       window.Storage.clearPriorDebt && window.Storage.clearPriorDebt();
       this.priorDebtRows = [];
       this.priorDebtText = '';
-      this.showToast('🗑️ Đã xóa nợ cũ', 'success');
       const state = this.$store.appState;
+      state.importStatus.priorDebt = false;
+      this.showToast('🗑️ Đã xóa hết nợ cũ', 'success');
+      if (state.matchingDone) this.runMatching();
+    },
+    // Gỡ 1 bạn khỏi nợ chốt (đóng tiền sau khi chốt → gỡ để khỏi tính nợ sai)
+    removePriorDebtRow(mshs) {
+      const key = (mshs || '').toUpperCase();
+      this.priorDebtRows = (this.priorDebtRows || []).filter(r => (r.mshs || '').toUpperCase() !== key);
+      const state = this.$store.appState;
+      if (!this.priorDebtRows.length) {
+        window.Storage.clearPriorDebt && window.Storage.clearPriorDebt();
+        this.priorDebtText = '';
+        state.importStatus.priorDebt = false;
+      } else {
+        window.Storage.savePriorDebt(state.monthYear, this.priorDebtRows);
+        this.priorDebtText = this.priorDebtRows.map(r => [r.mshs, r.fullName || '', r.className || '', r.amount].join('\t')).join('\n');
+      }
+      this.showToast(`✅ Đã gỡ nợ ${mshs} (đóng sau chốt)`, 'success');
       if (state.matchingDone) this.runMatching();
     },
 
