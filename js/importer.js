@@ -506,5 +506,62 @@ window.Importer = {
       if (window.Utils) window.Utils.showToast('Lỗi khi đọc DS Ghi HĐ: ' + e.message, 'error');
       return [];
     }
+  },
+
+  // Parse file Excel nợ chốt tháng trước (form ChotNo_YYYYMM.xlsx: MSHS | Họ tên | Lớp | Số còn thiếu)
+  parseDebtFile: async function(file) {
+    try {
+      const data = await this.readFileAsArrayBuffer(file);
+      const workbook = XLSX.read(data, { type: 'array' });
+      // Ưu tiên sheet CHOT_NO, không có thì lấy sheet đầu
+      let sheet = workbook.Sheets[workbook.SheetNames[0]];
+      for (const name of workbook.SheetNames) {
+        const nn = Utils.normalizeText(name);
+        if (nn.includes('chotno') || nn.includes('chot no')) {
+          sheet = workbook.Sheets[name];
+          break;
+        }
+      }
+      const dataMatrix = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      // Tìm dòng tiêu đề (có MSHS + thiếu/tiền)
+      let headerRowIdx = -1;
+      for (let i = 0; i < Math.min(15, dataMatrix.length); i++) {
+        const row = dataMatrix[i];
+        if (!row) continue;
+        const rowStr = row.join(' ').toLowerCase();
+        if (rowStr.includes('mshs') && (rowStr.includes('thiếu') || rowStr.includes('thieu') || rowStr.includes('tiền') || rowStr.includes('số'))) {
+          headerRowIdx = i;
+          break;
+        }
+      }
+      if (headerRowIdx === -1) throw new Error('Không tìm thấy tiêu đề (cần cột MSHS + Số còn thiếu)');
+      const headers = dataMatrix[headerRowIdx];
+      const colMap = {
+        mshs: this.findColumnIndex(headers, ['MSHS', 'Mã HS', 'Mã']),
+        fullName: this.findColumnIndex(headers, ['Họ tên', 'Tên', 'Full name']),
+        className: this.findColumnIndex(headers, ['Lớp', 'Class', 'Mã lớp']),
+        amount: this.findColumnIndex(headers, ['Số còn thiếu', 'Còn thiếu', 'Số thiếu', 'Số tiền', 'Thiếu'])
+      };
+      const rows = [];
+      for (let i = headerRowIdx + 1; i < dataMatrix.length; i++) {
+        const row = dataMatrix[i];
+        if (!row || row.length === 0) continue;
+        const mshs = ((colMap.mshs >= 0 ? row[colMap.mshs] : '') || '').toString().trim().toUpperCase();
+        if (!mshs || mshs.includes('KHÔNG AI NỢ') || mshs.includes('(')) continue;
+        const amount = colMap.amount >= 0 ? Utils.parseNumber(row[colMap.amount]) : 0;
+        if (amount <= 0) continue;
+        rows.push({
+          mshs,
+          fullName: colMap.fullName >= 0 ? (row[colMap.fullName] || '').toString().trim() : '',
+          className: colMap.className >= 0 ? (row[colMap.className] || '').toString().trim() : '',
+          amount
+        });
+      }
+      return rows;
+    } catch (e) {
+      console.error(e);
+      if (window.Utils) window.Utils.showToast('Lỗi khi đọc file nợ: ' + e.message, 'error');
+      return [];
+    }
   }
 };

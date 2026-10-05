@@ -25,7 +25,8 @@ document.addEventListener('alpine:init', () => {
       vietinBank: false,
       tpBank: false,
       tienMat: false,
-      prevInvoice: false
+      prevInvoice: false,
+      priorDebt: false // file Excel nợ chốt tháng trước (form ChotNo)
     },
     
     // Data
@@ -126,6 +127,7 @@ function appComponent() {
     tpbDragging: false,
     cashDragging: false,
     prevDragging: false,
+    debtDragging: false,
     // Assign modal state
     showAssignModal: false,
     assignTx: null,
@@ -395,6 +397,31 @@ function appComponent() {
             window.Storage._set('joy_prev_invoice_students', result);
             window.Storage._set('joy_prev_thuc_te_students', prevData.prevThucTe);
             break;
+          case 'priorDebt':
+            // File Excel nợ chốt tháng trước (form ChotNo do app xuất)
+            const debtRows = await window.Importer.parseDebtFile(file);
+            result = debtRows;
+            if (debtRows && debtRows.length) {
+              // Grill: chặn nhầm file tháng khác — tên file ChotNo_YYYYMM phải khớp tháng trước của tháng đang xem
+              const digits = (file.name || '').replace(/[^0-9]/g, '');
+              const expectPrev = (window.Storage.prevMonth ? window.Storage.prevMonth(state.monthYear || '') : '').replace(/-/g, '');
+              if (digits && expectPrev && !digits.includes(expectPrev)) {
+                this.showToast(`⚠️ File ${file.name} có vẻ của tháng khác (đang xem ${state.monthYear}, cần file tháng ${expectPrev.slice(0,4)}-${expectPrev.slice(4)}). Vẫn nạp — kiểm tra lại!`, 'warning');
+              }
+              // Grill: MSHS lạ (gõ sai mã) sẽ rớt vào "Nợ khó đòi" — báo ngay để sửa
+              const inMaster = new Set((state.students || []).map(s => (s.mshs || '').toUpperCase()));
+              const strange = debtRows.filter(r => !inMaster.has((r.mshs || '').toUpperCase())).map(r => r.mshs);
+              if (strange.length) {
+                this.showToast(`⚠️ ${strange.length} MSHS không có trong DS tổng (sai mã?): ${strange.slice(0, 8).join(', ')}${strange.length > 8 ? '...' : ''}`, 'warning');
+              }
+              window.Storage.savePriorDebt(state.monthYear, debtRows);
+              this.priorDebtRows = debtRows;
+              this.priorDebtText = debtRows.map(r => [r.mshs, r.fullName || '', r.className || '', r.amount].join('\t')).join('\n');
+              if (state.matchingDone) this.runMatching();
+            } else {
+              this.showToast('⚠️ File nợ không có dòng nào (ai cũng hết nợ thì khỏi import)', 'warning');
+            }
+            break;
         }
         
         state.importStatus[type] = true;
@@ -587,32 +614,6 @@ function appComponent() {
       if (state.matchingDone) this.runMatching();
     },
 
-    // Thả file nợ JSON (NoDauKy_YYYYMM.json) — tháng sau thả vào là xong, khỏi dán tay
-    importDebtFile(event) {
-      const file = event.target ? event.target.files[0] : null;
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = JSON.parse(e.target.result);
-          const rows = data.rows || data.data || [];
-          if (!rows.length) { this.showToast('❌ File không có dòng nợ nào', 'error'); return; }
-          const clean = rows.filter(r => r.mshs && (Number(r.amount) || 0) > 0)
-            .map(r => ({ mshs: String(r.mshs).toUpperCase(), fullName: r.fullName || '', className: r.className || '', amount: Number(r.amount) || 0 }));
-          if (!clean.length) { this.showToast('❌ Không đọc được dòng nào (cần MSHS + Số thiếu)', 'error'); return; }
-          const state = this.$store.appState;
-          const forMonth = data.forMonth || state.monthYear || '';
-          window.Storage.savePriorDebt(forMonth, clean);
-          this.priorDebtRows = clean;
-          this.priorDebtText = clean.map(r => [r.mshs, r.fullName, r.className, r.amount].join('\t')).join('\n');
-          this.showToast(`✅ Đã nạp nợ ${clean.length} bạn (từ T${data.fromMonth || 'trước'})`, 'success');
-          if (state.matchingDone) this.runMatching();
-        } catch (err) { this.showToast('❌ File lỗi: ' + err.message, 'error'); }
-      };
-      reader.readAsText(file);
-      event.target.value = null;
-    },
-
     // Bước 3: Chốt nợ cuối tháng — lấy ai còn thiếu làm nợ đầu kỳ tháng sau + xuất file
     closeDebtUI() {
       const state = this.$store.appState;
@@ -627,12 +628,12 @@ function appComponent() {
       const bad = (this.badDebtRows || []).map(b => ({ mshs: b.mshs, fullName: b.fullName || '', className: b.className || '', amount: b.amount }));
       const all = rows.concat(bad.filter(b => !rows.some(r => r.mshs === b.mshs)));
       window.Storage.saveClosingDebt(month, all);
-      // Tự nhớ cho tháng sau: sang tháng mới app lấy luôn, khỏi dán tay
+      // Tự nhớ cho tháng sau: sang tháng mới app lấy luôn, khỏi import tay
       const nm = window.Storage.nextMonth ? window.Storage.nextMonth(month) : '';
       if (nm) window.Storage.savePriorDebt(nm, all);
+      // Output duy nhất cho nợ: file Excel form ChotNo → tháng sau import lại đúng form này
       window.Exporter.exportClosingDebt(all, month);
-      window.Exporter.exportDebtJSON(all, month);
-      this.showToast(all.length ? `✅ Đã chốt nợ T${month} (${all.length} bạn) → Excel + JSON, tự nhớ cho tháng ${nm}` : `✅ Tháng ${month} không ai nợ`, 'success');
+      this.showToast(all.length ? `✅ Đã chốt nợ T${month} (${all.length} bạn) → file Excel, tự nhớ cho tháng ${nm}` : `✅ Tháng ${month} không ai nợ`, 'success');
     },
 
     // Xuất mapping thống nhất (1 JSON cho web + vẫn giữ Excel để Ngọc đọc)

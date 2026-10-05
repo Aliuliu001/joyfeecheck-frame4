@@ -199,28 +199,38 @@
           <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">File Excel Kế toán (2 sheet: DS Thực tế + DS Ghi HĐ). Dùng để so sánh: ai tăng/giảm so với tháng này.</p>
         </div>
 
-        <!-- Nợ chốt tháng trước: dán 4 cột MSHS | Họ tên | Lớp | Số thiếu -->
+        <!-- Nợ chốt tháng trước: import file Excel form ChotNo (do app xuất cuối tháng trước) -->
         <div class="drop-zone card glass-card"
-             :class="{ 'success': (priorDebtRows && priorDebtRows.length > 0) }"
+             :class="{ 'success': (priorDebtRows && priorDebtRows.length > 0), 'drag-over': debtDragging }"
+             @click="$refs.fileDebt.click()"
+             @dragover.prevent="debtDragging = true"
+             @dragleave="debtDragging = false"
+             @drop.prevent="debtDragging = false; handleFileDrop($event, 'priorDebt')"
              style="border-color: rgba(244,67,54,0.3);">
           <div class="drop-icon">🧾</div>
-          <h4>🧾 Nợ chốt tháng trước</h4>
+          <h4>🧾 Nợ chốt tháng trước (Excel)</h4>
           <p class="status-text" :class="(priorDebtRows && priorDebtRows.length > 0) ? 'success' : 'warning'">
-            <span x-show="!(priorDebtRows && priorDebtRows.length > 0)">Chưa có (ai không nợ thì khỏi dán)</span>
-            <span x-show="priorDebtRows && priorDebtRows.length > 0">✅ <span x-text="priorDebtRows.length"></span> bạn nợ</span>
+            <span x-show="!(priorDebtRows && priorDebtRows.length > 0)">Chưa import (ai không nợ thì khỏi import)</span>
+            <span x-show="priorDebtRows && priorDebtRows.length > 0">✅ Đã import (<span x-text="priorDebtRows.length"></span> bạn nợ)</span>
           </p>
-          <textarea x-model="priorDebtText"
-                    rows="4"
-                    placeholder="Dán 4 cột từ Trang tính: MSHS | Họ tên | Lớp | Số thiếu&#10;VD: HV011 | Nguyễn Văn A | S2.001 | 800000"
-                    style="width: 100%; font-size: 12px; border-radius: 8px; padding: 8px;"
-                    @click.stop></textarea>
-          <div style="display: flex; gap: 8px; margin-top: 8px;" @click.stop>
-            <button class="btn btn-sm btn-primary" @click="savePriorDebt()">💾 Lưu nợ</button>
-            <button class="btn btn-sm btn-outline" @click="$refs.fileDebt.click()">📂 Thả file JSON</button>
-            <input type="file" x-ref="fileDebt" accept=".json" @change="importDebtFile($event)" @click.stop hidden>
-            <button class="btn btn-sm btn-outline" @click="clearPriorDebtUI()" x-show="priorDebtRows && priorDebtRows.length > 0">🗑️ Xóa</button>
-          </div>
-          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Tháng 10 dán 1 lần từ file chốt 30.09. Từ tháng 11 app tự nhớ sau khi bạn bấm "Chốt nợ". Chỉ MSHS + Số thiếu là bắt buộc.</p>
+          <input type="file"
+                 x-ref="fileDebt"
+                 accept=".xlsx, .xls, .csv"
+                 @change="handleFileImport($event, 'priorDebt')"
+                 hidden>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Thả đúng file <b>ChotNo_YYYYMM.xlsx</b> do app xuất cuối tháng trước. Tháng 10 này chưa có file thì dán tay 1 lần ở dưới.</p>
+          <details @click.stop style="margin-top: 6px;">
+            <summary style="font-size: 12px; cursor: pointer;">Dán tay (chỉ dùng tháng 10 lần đầu)</summary>
+            <textarea x-model="priorDebtText"
+                      rows="4"
+                      placeholder="Dán 4 cột: MSHS | Họ tên | Lớp | Số thiếu&#10;VD: HV011 | Nguyễn Văn A | S2.001 | 800000"
+                      style="width: 100%; font-size: 12px; border-radius: 8px; padding: 8px; margin-top: 6px;"
+                      @click.stop></textarea>
+            <div style="display: flex; gap: 8px; margin-top: 8px;" @click.stop>
+              <button class="btn btn-sm btn-primary" @click="savePriorDebt()">💾 Lưu nợ dán tay</button>
+              <button class="btn btn-sm btn-outline" @click="clearPriorDebtUI()" x-show="priorDebtRows && priorDebtRows.length > 0">🗑️ Xóa</button>
+            </div>
+          </details>
         </div>
       </div>
 

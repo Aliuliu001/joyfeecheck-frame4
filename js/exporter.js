@@ -768,29 +768,6 @@ window.Exporter = {
   },
 
   /**
-   * (D) Xuất file nợ JSON — tháng sau thả vào ô "Nợ chốt tháng trước" là xong.
-   * Cấu trúc: {app:'joyfeecheck', kind:'closing-debt', forMonth, rows:[{mshs,fullName,className,amount}]}
-   */
-  exportDebtJSON: function(rows, closingMonth) {
-    const payload = {
-      app: 'joyfeecheck', kind: 'closing-debt',
-      forMonth: (window.Storage && window.Storage.nextMonth ? window.Storage.nextMonth(closingMonth) : '') || '',
-      fromMonth: closingMonth || '',
-      exportDate: new Date().toISOString(),
-      rows: (rows || []).map(r => ({ mshs: r.mshs || '', fullName: r.fullName || '', className: r.className || '', amount: r.amount || 0 }))
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `NoDauKy_${(payload.forMonth || '').replace(/-/g, '')}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 100);
-  },
-
-  /**
    * (E) Xuất mapping thống nhất 1 file JSON — web đọc khi local trống.
    * Gồm: STK phụ + từ khóa + gia đình + gói + nợ (đầu kỳ + đã chốt).
    */
