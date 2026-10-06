@@ -158,41 +158,80 @@ function appComponent() {
     suspendForm: { mshs: '', className: '', note: '' },
     showMissingNoteModal: false,
     missingNoteStudent: { mshs: '', name: '' },
-    missingNoteForm: { type: 'Giới thiệu học sinh mới (-400k)', note: '' },
+    missingNoteForm: { type: 'Giới thiệu học sinh mới', note: '', amount: '-400000' },
+    rowMenuOpen: '', // MSHS đang mở menu 3 chấm ở cột Ghi chú
     openMissingNote(row) {
+      this.rowMenuOpen = '';
       this.missingNoteStudent = { mshs: row.mshs || '', name: row.fullName || '' };
-      this.missingNoteForm = { type: 'Giới thiệu học sinh mới (-400k)', note: '' };
+      this.missingNoteForm = { type: 'Giới thiệu học sinh mới', note: '', amount: '-400000' };
+      // Nạp sẵn ghi chú tay đã lưu (sửa/xoá)
+      try {
+        const saved = (window.Storage.loadManualNotes ? window.Storage.loadManualNotes() : []) || [];
+        const my = this.$store ? this.$store.appState.monthYear : '';
+        const hit = saved.find(n => (n.mshs || '').toUpperCase() === (row.mshs || '').toUpperCase() && (n.monthYear || '') === (my || ''));
+        if (hit && hit.note) {
+          this.missingNoteForm = { type: 'Ghi chú tay (không đổi số tiền)', note: hit.note, amount: '0' };
+        }
+      } catch (e) {}
       this.showMissingNoteModal = true;
     },
     confirmMissingNote() {
       const mshs = this.missingNoteStudent.mshs;
       const type = this.missingNoteForm.type;
       const noteText = (this.missingNoteForm.note || '').trim();
+      const monthYear = this.$store.appState.monthYear || '';
       if (!mshs) { this.showToast('⚠️ Lỗi học sinh', 'error'); return; }
+      const rawAmt = parseInt(String(this.missingNoteForm.amount || '').replace(/[^0-9-]/g, ''), 10);
       if (type.includes('Giới thiệu')) {
+        const referred = noteText.toUpperCase().replace(/\s+/g, '');
+        if (!referred || referred === 'HS_MOI') { this.showToast('⚠️ Gõ MSHS của bé mới vào ô nội dung (VD: HV500)', 'error'); return; }
+        if (referred === (mshs || '').toUpperCase()) { this.showToast('⚠️ Bé mới phải khác bé giới thiệu', 'error'); return; }
+        let amount = isNaN(rawAmt) ? -400000 : rawAmt;
+        if (amount > 0) amount = -amount; // giảm luôn âm
+        if (amount === 0) amount = -400000;
         if (window.Storage.addReferral) {
+          // Tháng bắt đầu = tháng đang xem, giảm từ sau 3 tháng (giống form Giới thiệu ở Cài đặt)
+          const [sy, sm] = monthYear.split('-').map(Number);
+          let applyMonth = monthYear;
+          if (sy && sm) {
+            const d = new Date(sy, sm - 1 + 3);
+            applyMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          }
           const res = window.Storage.addReferral({
             mshs: mshs,
-            referredMSHS: noteText || 'HS_MOI',
-            startMonth: this.$store.appState.monthYear || '2026-09',
-            amount: -400000
+            referredMSHS: referred,
+            startMonth: monthYear || '2026-09',
+            applyMonth: applyMonth,
+            amount: amount,
+            note: `Giới thiệu ${referred}`
           });
           if (res && res.error) {
             this.showToast('⚠️ ' + res.error, 'warning');
           } else {
-            this.showToast('✅ Đã tạo ghi chú giới thiệu thành công!', 'success');
+            this.showToast(`✅ Đã lưu giới thiệu: ${mshs} → ${referred}, giảm ${this.$formatCurrency(amount)} từ ${applyMonth}`, 'success');
           }
         }
+      } else if (type.includes('Ghi chú tay')) {
+        // Chỉ chữ, KHÔNG đụng tiền — lưu trong máy, import lại không mất. Xoá chữ = bấm lưu khi ô trống.
+        if (window.Storage.saveManualNote) {
+          window.Storage.saveManualNote(mshs, monthYear, noteText);
+          this.showToast(noteText ? '✅ Đã lưu ghi chú tay' : '🗑️ Đã xoá ghi chú tay', 'success');
+        }
       } else {
+        // Hỗ trợ / giảm đặc biệt: số tiền tự gõ
+        let amount = isNaN(rawAmt) ? -400000 : rawAmt;
+        if (amount > 0) amount = -amount;
+        if (amount === 0) { this.showToast('⚠️ Số tiền giảm phải khác 0', 'error'); return; }
         if (window.Storage.addFeeAdjustment) {
           window.Storage.addFeeAdjustment({
             mshs: mshs,
+            studentName: this.missingNoteStudent.name || '',
             type: type,
-            amount: -400000,
-            monthYear: this.$store.appState.monthYear || '',
+            amount: amount,
+            monthYear: monthYear,
             note: noteText
           });
-          this.showToast('✅ Đã thêm ghi chú ưu đãi/đóng thiếu!', 'success');
+          this.showToast(`✅ Đã giảm ${this.$formatCurrency(amount)} cho ${mshs}`, 'success');
         }
       }
       this.showMissingNoteModal = false;
@@ -1445,6 +1484,7 @@ function appComponent() {
     },
 
     quickSuspend(mshs, fullName) {
+      this.rowMenuOpen = '';
       const state = this.$store.appState;
       const student = (state.students || []).find(s => s.mshs === mshs);
       const classes = ((student && student.className) || '').split(',').map(c => c.trim()).filter(Boolean);
@@ -1463,6 +1503,7 @@ function appComponent() {
     },
 
     addFamilyGroupForStudent(mshs, fullName) {
+      this.rowMenuOpen = '';
       this.familyForm = { groupName: `Nhà ${fullName}`, membersRaw: mshs + ', ', tenPH: '', stk: '' };
       this.familyEditingId = null;
       this.showFamilyModal = true;
@@ -1677,6 +1718,7 @@ function appComponent() {
       backup.joy_suspended = K.joy_suspended || [];
       backup.joy_fee_adjustments = K.joy_fee_adjustments || [];
       backup.joy_referrals = K.joy_referrals || [];
+      backup.joy_manual_notes = K.joy_manual_notes || [];
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1739,7 +1781,7 @@ function appComponent() {
         }))), 'Gioi thieu');
         // Các sheet còn lại: vét sạch mọi key joy_* khác chưa lên sheet
         try {
-          const done = new Set(['joy_stk_phu', 'joy_keywords', 'joy_family_groups', 'joy_ignored_tx', 'joy_packages', 'joy_suspended', 'joy_fee_adjustments', 'joy_referrals']);
+          const done = new Set(['joy_stk_phu', 'joy_keywords', 'joy_family_groups', 'joy_ignored_tx', 'joy_packages', 'joy_suspended', 'joy_fee_adjustments', 'joy_referrals', 'joy_manual_notes']);
           for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
             if (k && k.startsWith('joy_') && !done.has(k)) {
@@ -1840,6 +1882,7 @@ function appComponent() {
           mergeById('joy_suspended', data.joy_suspended, 'id');
           mergeById('joy_fee_adjustments', data.joy_fee_adjustments, 'id');
           mergeById('joy_referrals', data.joy_referrals, 'id');
+          mergeById('joy_manual_notes', data.joy_manual_notes, 'id');
           const addedIgnored = mergedIgnored.length - oldIgnored.length;
           this.loadSettingsUI();
           this.runMatching();

@@ -76,15 +76,17 @@ window.Exporter = {
       ? monthYear.split('-').reverse().join('.')
       : (monthYear || '');
     
+    const tptCell = (row) => row.hocPhiPending
+      ? (((row.tongPhaiThu || 0) > 0 ? Utils.formatCurrency(row.tongPhaiThu) + ' + ' : '') + 'Chốt sau')
+      : (row.tongPhaiThu || row.tongHocPhi);
     const dataRows = reportRows.map((row, index) => ({
       'STT': index + 1,
       'MSHS': row.mshs,
       'Họ tên': row.fullName,
       'Lớp': row.className,
       'GV': row.teacher,
-      'Tổng HP': row.hocPhiPending ? 'Chốt sau' : row.tongHocPhi,
       'Nợ cũ': row.noCu || 0,
-      'Tổng phải thu': row.hocPhiPending ? 'Chốt sau' : (row.tongPhaiThu || row.tongHocPhi),
+      'Tổng phải thu': tptCell(row),
       'CK VietinBank': row.chuyenKhoanVTB,
       'Tiền mặt': row.tienMat,
       'CK TPBank': row.chuyenKhoanTPB,
@@ -101,7 +103,6 @@ window.Exporter = {
       'Họ tên': 'TỔNG CỘNG',
       'Lớp': '',
       'GV': '',
-      'Tổng HP': stats.tongHocPhi,
       'Nợ cũ': stats.tongNoCu || 0,
       'Tổng phải thu': stats.tongPhaiThu || 0,
       'CK VietinBank': '',
@@ -131,12 +132,12 @@ window.Exporter = {
       [`BÁO CÁO ĐỐI SOÁT - ${monthLabel}`],
       [`Ngày tạo: ${new Date().toLocaleDateString('vi-VN')}`],
       [],
-      ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Tổng HP', 'Nợ cũ', 'Tổng phải thu', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Còn thiếu', 'Trạng thái', 'Ghi chú']
+      ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Nợ cũ', 'Tổng phải thu', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Còn thiếu', 'Trạng thái', 'Ghi chú']
     ];
 
     dataRows.forEach(row => {
       finalAoA.push([
-        row['STT'], row['MSHS'], row['Họ tên'], row['Lớp'], row['GV'], row['Tổng HP'],
+        row['STT'], row['MSHS'], row['Họ tên'], row['Lớp'], row['GV'],
         row['Nợ cũ'], row['Tổng phải thu'],
         row['CK VietinBank'], row['Tiền mặt'], row['CK TPBank'], row['Tổng đã đóng'],
         row['Còn thiếu'],
@@ -145,7 +146,7 @@ window.Exporter = {
     });
 
     const finalWs = XLSX.utils.aoa_to_sheet(finalAoA);
-    this.autoFitColumns(finalWs, dataRows, ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Tổng HP', 'Nợ cũ', 'Tổng phải thu', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Còn thiếu', 'Trạng thái', 'Ghi chú']);
+    this.autoFitColumns(finalWs, dataRows, ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Nợ cũ', 'Tổng phải thu', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Còn thiếu', 'Trạng thái', 'Ghi chú']);
     
     XLSX.utils.book_append_sheet(wb, finalWs, 'BÁO CÁO ĐỐI SOÁT');
     
@@ -580,7 +581,7 @@ window.Exporter = {
       'Họ tên': row.fullName,
       'SĐT': row.phone,
       'Nợ cũ': row.noCu || 0,
-      'Tổng phải thu': row.hocPhiPending ? 'Chốt sau' : (row.tongPhaiThu || row.soTienThieu || 0),
+      'Tổng phải thu': row.hocPhiPending ? (((row.tongPhaiThu || 0) > 0 ? Utils.formatCurrency(row.tongPhaiThu) + ' + ' : '') + 'Chốt sau') : (row.tongPhaiThu || row.soTienThieu || 0),
       'Số tiền thiếu': row.hocPhiPending ? 'Chốt sau' : row.soTienThieu,
       'Lớp': row.className,
       'Lời nhắc': row.loiNhac || ''
@@ -695,13 +696,15 @@ window.Exporter = {
       [APP_CONFIG.COMPANY_NAME],
       [`BÁO CÁO ĐỐI SOÁT - ${monthLabel}`],
       [],
-      ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Tổng HP', 'Nợ cũ', 'Tổng phải thu', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Còn thiếu', 'Trạng thái', 'Ghi chú']
+      ['STT', 'MSHS', 'Họ tên', 'Lớp', 'GV', 'Nợ cũ', 'Tổng phải thu', 'CK VietinBank', 'Tiền mặt', 'CK TPBank', 'Tổng đã đóng', 'Còn thiếu', 'Trạng thái', 'Ghi chú']
     ];
     (reportRows || []).forEach((row, idx) => {
+      const tpt = row.hocPhiPending
+        ? (((row.tongPhaiThu || 0) > 0 ? Utils.formatCurrency(row.tongPhaiThu) + ' + ' : '') + 'Chốt sau')
+        : (row.tongPhaiThu || row.tongHocPhi);
       reportAoA.push([
         idx + 1, row.mshs, row.fullName, row.className, row.teacher,
-        row.hocPhiPending ? 'Chốt sau' : row.tongHocPhi,
-        row.noCu || 0, row.hocPhiPending ? 'Chốt sau' : (row.tongPhaiThu || row.tongHocPhi),
+        row.noCu || 0, tpt,
         row.chuyenKhoanVTB, row.tienMat, row.chuyenKhoanTPB, row.tongDaDong,
         row.hocPhiPending ? 'Chốt sau' : (row.conThieu || 0),
  row.trangThai, row.ghiChu || ''
@@ -709,7 +712,7 @@ window.Exporter = {
  });
     if (stats) {
       reportAoA.push([
-        '', '', 'TỔNG CỘNG', '', '', stats.tongHocPhi, '', '', '', stats.tongThu, '', ''
+        '', '', 'TỔNG CỘNG', '', '', stats.tongNoCu || 0, stats.tongPhaiThu || 0, '', '', '', stats.tongThu, stats.conThieu || 0, '', ''
       ]);
     }
     XLSX.utils.book_append_sheet(wb, createSheet(reportAoA, reportAoA[3]), 'BAO_CAO');

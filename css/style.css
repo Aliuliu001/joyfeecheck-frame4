@@ -119,15 +119,25 @@ p { font-size: 15px; color: var(--text-muted); margin-bottom: 12px; }
 .tab-icon { font-size: 18px; }
 
 /* Main Content */
-#main-content { padding: 20px 0; max-width: 94%; margin: 0 auto; }
+#main-content { padding: 20px 0; max-width: 98%; margin: 0 auto; }
 
-/* Report + Accounting full width 96% */
-.report-fullwidth { max-width: 96%; margin-left: auto; margin-right: auto; padding-left: 0; padding-right: 0; }
-.report-fullwidth .summary-cards { max-width: 1400px; margin-left: auto; margin-right: auto; }
-.report-fullwidth .filters-bar { max-width: 1400px; margin-left: auto; margin-right: auto; }
+/* Report + Accounting full width 97-98% */
+.report-fullwidth { max-width: 98%; margin-left: auto; margin-right: auto; padding-left: 0; padding-right: 0; }
+.report-fullwidth .summary-cards { max-width: 1600px; margin-left: auto; margin-right: auto; }
+.report-fullwidth .filters-bar { max-width: 1600px; margin-left: auto; margin-right: auto; }
 .report-fullwidth .table-container { max-width: none; overflow-x: visible; }
-.report-fullwidth .table-container table { min-width: 100%; }
-.report-fullwidth .table-container th, .report-fullwidth .table-container td { padding: 10px 8px; font-size: 14px; }
+.report-fullwidth .table-container table { min-width: 100%; width: 100%; table-layout: auto; }
+.report-fullwidth .table-container th, .report-fullwidth .table-container td { padding: 8px 6px; font-size: 13px; }
+/* Bang doi soat: cot tien can giua, cot chu rong rai */
+.report-table td.col-amount, .report-table th:nth-child(n+5):nth-child(-n+11) { text-align: center; }
+.report-table .report-note { max-width: none; }
+.report-table td { vertical-align: middle; }
+/* Nut 3 cham dau o Ghi chu */
+.row-menu-btn { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border-color); background: #fff; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+.row-menu-btn:hover { border-color: var(--primary); }
+.row-menu { position: absolute; top: 30px; left: 0; z-index: 50; background: #fff; border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 190px; }
+.row-menu button { text-align: left; background: none; border: none; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.row-menu button:hover { background: var(--bg-main); }
 
 /* Settings Panel */
 .settings-panel { margin-bottom: 32px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }

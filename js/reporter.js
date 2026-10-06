@@ -60,6 +60,14 @@ window.Reporter = {
     for (const adj of adjustments) {
       adjMap.set(adj.mshs, (adjMap.get(adj.mshs) || 0) + adj.amount);
     }
+    // Ghi chú tay (chỉ chữ, lưu trong máy — import lại không mất)
+    let manualMap = new Map();
+    try {
+      const mn = (Storage.loadManualNotes ? Storage.loadManualNotes() : []) || [];
+      for (const n of mn) {
+        if ((n.monthYear || '') === (monthYear || '') && n.note) manualMap.set((n.mshs || '').toUpperCase(), n.note);
+      }
+    } catch (e) { manualMap = new Map(); }
 
     for (const [mshs, classRows] of grouped.entries()) {
       let tongHocPhi = 0;
@@ -297,6 +305,11 @@ window.Reporter = {
       }
 
       let ghiChu = notes.join(' · ');
+      // Ghi chú tay của bạn (chỉ chữ, không đổi tiền)
+      try {
+        const myNote = manualMap.get((mshs || '').toUpperCase());
+        if (myNote) ghiChu = (ghiChu ? ghiChu + ' · ' : '') + `✏️ ${myNote}`;
+      } catch (e) {}
 
       reportRows.push({
         mshs: mshs,

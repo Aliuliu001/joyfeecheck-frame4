@@ -350,6 +350,28 @@ window.Storage = {
   },
 
   // ========================
+  // GHI CHÚ TAY (chỉ chữ, không đổi tiền — import lại không mất)
+  // ========================
+  loadManualNotes: function() {
+    return this._get('joy_manual_notes', []);
+  },
+  saveManualNote: function(mshs, monthYear, note) {
+    const list = this.loadManualNotes();
+    const key = (mshs || '').toUpperCase() + '|' + (monthYear || '');
+    const idx = list.findIndex(n => ((n.mshs || '').toUpperCase() + '|' + (n.monthYear || '')) === key);
+    const entry = { id: idx >= 0 ? list[idx].id : ('mn_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)), mshs: (mshs || '').toUpperCase(), monthYear: monthYear || '', note: note || '', updatedDate: new Date().toISOString() };
+    if (idx >= 0) list[idx] = entry; else list.push(entry);
+    this._set('joy_manual_notes', list);
+    return entry;
+  },
+  removeManualNote: function(mshs, monthYear) {
+    const key = (mshs || '').toUpperCase() + '|' + (monthYear || '');
+    const list = this.loadManualNotes().filter(n => ((n.mshs || '').toUpperCase() + '|' + (n.monthYear || '')) !== key);
+    this._set('joy_manual_notes', list);
+    return list;
+  },
+
+  // ========================
   // GIỚI THIỆU BẠN MỚI
   // ========================
   addReferral: function(ref) {
