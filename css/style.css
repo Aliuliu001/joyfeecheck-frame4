@@ -130,7 +130,7 @@ p { font-size: 15px; color: var(--text-muted); margin-bottom: 12px; }
 .report-fullwidth .table-container th, .report-fullwidth .table-container td { padding: 8px 6px; font-size: 13px; }
 /* Bang doi soat: cot tien can giua, cot chu rong rai */
 .report-table td.col-amount, .report-table th:nth-child(n+5):nth-child(-n+11) { text-align: center; }
-.report-table .report-note { max-width: none; }
+.report-table .report-note { min-width: 130px; max-width: 200px; word-break: break-word; white-space: normal; }
 .report-table td { vertical-align: middle; }
 /* Nut 3 cham dau o Ghi chu */
 .row-menu-btn { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border-color); background: #fff; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
