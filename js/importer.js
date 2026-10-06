@@ -94,12 +94,20 @@ window.Importer = {
         const hocPhiRaw = row[colMap.hocPhi];
         // Đánh dấu ô HP trống → app đoán số mặc định (để tô vàng kiểm tra lại)
         let hocPhiIsDefault = false;
+        // Học kèm "Chốt sau": HP chưa biết — hiện chữ, chỉ nhắc không cộng tổng
+        let hocPhiPending = false;
         if (hocPhiRaw !== undefined && hocPhiRaw !== null && String(hocPhiRaw).trim() !== '') {
-            const parsed = Utils.parseNumber(hocPhiRaw);
-            // Cho phép HP = 0 (miễn phí) hoặc HP > 0 (giảm/miễn)
-            // Chỉ dùng default nếu cột HP trống hoặc không parse được
-            if (!isNaN(parsed)) hocPhiVal = parsed;
-            else hocPhiIsDefault = true;
+            const normHP = Utils.normalizeText(String(hocPhiRaw));
+            if (normHP.includes('chot sau') || normHP.includes('chotsau') || normHP.includes('cho chot')) {
+              hocPhiPending = true;
+              hocPhiVal = 0;
+            } else {
+              const parsed = Utils.parseNumber(hocPhiRaw);
+              // Cho phép HP = 0 (miễn phí) hoặc HP > 0 (giảm/miễn)
+              // Chỉ dùng default nếu cột HP trống hoặc không parse được
+              if (!isNaN(parsed)) hocPhiVal = parsed;
+              else hocPhiIsDefault = true;
+            }
         } else {
           hocPhiIsDefault = true;
         }
@@ -116,6 +124,7 @@ window.Importer = {
           tenTK: colMap.tenTK >= 0 ? (row[colMap.tenTK] || '').toString().trim() : '',
           hocPhi: hocPhiVal,
           hocPhiIsDefault: hocPhiIsDefault,
+          hocPhiPending: hocPhiPending,
           ghiChuGiaDinh: colMap.ghiChu >= 0 ? (row[colMap.ghiChu] || '').toString().trim() : '',
           diaChi: colMap.diaChi >= 0 ? (row[colMap.diaChi] || '').toString().trim() : ''
         };

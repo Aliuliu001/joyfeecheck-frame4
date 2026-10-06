@@ -105,23 +105,27 @@ window.Accounting = {
     }
     const manualOverrides = (window.Storage && window.Storage.loadAccOverrides) ? window.Storage.loadAccOverrides() : {};
 
-    // Tab 3: Giảm bớt = (Tab1 - Tab2) ∩ IN master ∩ (Report HP > 0 OR manual override)
+    // Tab 3: Giảm bớt = (Tab1 - Tab2) ∩ IN master ∩ (Report HP > 0 OR manual override OR "Chốt sau")
+    // Bạn "Chốt sau" (HP chưa biết) vẫn còn học → giữ ở Tab 3 để nhắc, không rớt sang Stop
     const tab3 = tab1MinusTab2.filter(r => {
       if (manualOverrides[r.mshs] === 'vanhoc') return true;
       const student = (currMap || new Map()).get(r.mshs);
       if (!student) return false;
       const rep = reportMap.get(r.mshs);
+      if ((rep && rep.hocPhiPending) || student.hocPhiPending) return true;
       const effectiveHP = rep ? rep.tongHocPhi : (Number(student.hocPhi) || 0);
       if (effectiveHP === 0) return false;
       return true;
     });
 
     // Tab 4: Stop học nghỉ = (Tab1 - Tab2) ∩ (NOT in master OR Report HP=0) AND NO manual override
+    // Bạn "Chốt sau" KHÔNG phải Stop → loại ra
     const tab4 = tab1MinusTab2.filter(r => {
       if (manualOverrides[r.mshs] === 'vanhoc') return false;
       const student = (currMap || new Map()).get(r.mshs);
       if (!student) return true;
       const rep = reportMap.get(r.mshs);
+      if ((rep && rep.hocPhiPending) || student.hocPhiPending) return false;
       const effectiveHP = rep ? rep.tongHocPhi : (Number(student.hocPhi) || 0);
       if (effectiveHP === 0) return true;
       return false;
@@ -307,9 +311,12 @@ window.Accounting = {
         mshs: r.mshs, fullName: r.fullName, phone: r.phone || '',
         soTienThieu: (r.conThieu != null ? r.conThieu : r.soTienThieu) || 0,
         noCu: r.noCu || 0, tongPhaiThu: r.tongPhaiThu || r.tongHocPhi || 0,
+        hocPhiPending: !!r.hocPhiPending,
         className: r.className || '',
         // Câu nhắc sẵn để gọi/zalo PH: tách rõ nợ cũ + HP tháng này
-        loiNhac: (r.noCu > 0)
+        loiNhac: r.hocPhiPending
+          ? `⏳ HP chốt sau — nhắc PH (số tiền chưa chốt, không cộng tổng)`
+          : (r.noCu > 0)
           ? ((r.noCuConLai === 0)
             ? `Đã hết nợ cũ ${Utils.formatCurrency(r.noCu)}, HP tháng này còn thiếu ${Utils.formatCurrency((r.conThieu != null ? r.conThieu : r.soTienThieu) || 0)}`
             : `Nợ cũ còn ${Utils.formatCurrency(r.noCuConLai != null ? r.noCuConLai : r.noCu)} + HP tháng này ${Utils.formatCurrency(r.tongHocPhi)} = còn thiếu ${Utils.formatCurrency((r.conThieu != null ? r.conThieu : r.soTienThieu) || 0)}`)

@@ -21,6 +21,7 @@
 | N10 | Ô HP tự sửa ở Tổng hợp chưa rõ | Tô vàng nền + viền đỏ ô HP khác mặc định | ✅ đã code |
 | N11 | Bảng nợ: bạn học 2 lớp → 2 dòng cùng MSHS, nợ không cộng | `normalizeDebtRows`: gộp trùng MSHS (cộng nợ + gộp lớp), sort MSHS | ✅ đã code + test |
 | N12 | Copy Tab 6 sang Tổng hợp: HP chỉ lấy 1 lớp + sort lộn xộn | Lấy tổng HP 2 lớp (cộng dồn DS tổng); sort Tổng hợp theo MSHS | ✅ đã code |
+| N13 | Học kèm "Chốt sau": ô trống bị đắp 800k, tính thiếu ảo | Ghi "Chốt sau" vào ô HP → hiện chữ, vẫn Chưa đóng + Nhắc PH, KHÔNG cộng tổng | ✅ đã code + test 11 case |
 
 ### Quy ước đã chốt với Ngọc (đợt nợ cũ)
 

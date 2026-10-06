@@ -82,14 +82,14 @@ window.Exporter = {
       'Họ tên': row.fullName,
       'Lớp': row.className,
       'GV': row.teacher,
-      'Tổng HP': row.tongHocPhi,
+      'Tổng HP': row.hocPhiPending ? 'Chốt sau' : row.tongHocPhi,
       'Nợ cũ': row.noCu || 0,
-      'Tổng phải thu': row.tongPhaiThu || row.tongHocPhi,
+      'Tổng phải thu': row.hocPhiPending ? 'Chốt sau' : (row.tongPhaiThu || row.tongHocPhi),
       'CK VietinBank': row.chuyenKhoanVTB,
       'Tiền mặt': row.tienMat,
       'CK TPBank': row.chuyenKhoanTPB,
       'Tổng đã đóng': row.tongDaDong,
-      'Còn thiếu': row.conThieu || 0,
+      'Còn thiếu': row.hocPhiPending ? 'Chốt sau' : (row.conThieu || 0),
       'Trạng thái': row.trangThai,
       'Ghi chú': row.ghiChu || ''
     }));
@@ -580,8 +580,8 @@ window.Exporter = {
       'Họ tên': row.fullName,
       'SĐT': row.phone,
       'Nợ cũ': row.noCu || 0,
-      'Tổng phải thu': row.tongPhaiThu || row.soTienThieu || 0,
-      'Số tiền thiếu': row.soTienThieu,
+      'Tổng phải thu': row.hocPhiPending ? 'Chốt sau' : (row.tongPhaiThu || row.soTienThieu || 0),
+      'Số tiền thiếu': row.hocPhiPending ? 'Chốt sau' : row.soTienThieu,
       'Lớp': row.className,
       'Lời nhắc': row.loiNhac || ''
     }));
@@ -699,10 +699,11 @@ window.Exporter = {
     ];
     (reportRows || []).forEach((row, idx) => {
       reportAoA.push([
-        idx + 1, row.mshs, row.fullName, row.className, row.teacher, row.tongHocPhi,
-        row.noCu || 0, row.tongPhaiThu || row.tongHocPhi,
+        idx + 1, row.mshs, row.fullName, row.className, row.teacher,
+        row.hocPhiPending ? 'Chốt sau' : row.tongHocPhi,
+        row.noCu || 0, row.hocPhiPending ? 'Chốt sau' : (row.tongPhaiThu || row.tongHocPhi),
         row.chuyenKhoanVTB, row.tienMat, row.chuyenKhoanTPB, row.tongDaDong,
-        row.conThieu || 0,
+        row.hocPhiPending ? 'Chốt sau' : (row.conThieu || 0),
  row.trangThai, row.ghiChu || ''
  ]);
  });

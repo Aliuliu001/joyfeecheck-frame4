@@ -103,14 +103,17 @@ window.Reporter = {
       if (familyGroup) {
         // Chia tiền nhà theo HP tháng này (giữ nguyên cách cũ).
         // Nợ cũ trừ ở từng bạn sau (daTraNo) — nhà có bạn nợ thì phần được chia trả nợ trước.
+        // Bạn "Chốt sau" (HP chưa biết): xếp cuối, hưởng phần còn dư.
         let familyTotalFee = 0;
         const familyStudentFees = {};
+        const pendingSet = new Set();
         for (const fmshs of familyGroup.members) {
           const fmRows = grouped.get(fmshs) || [];
           let fFee = 0;
           for (const r of fmRows) {
             fFee += (Number(r.hocPhi) || 0);
           }
+          if (fmRows.some(r => r.hocPhiPending)) pendingSet.add(fmshs);
           familyStudentFees[fmshs] = fFee;
           familyTotalFee += fFee;
         }
@@ -127,7 +130,10 @@ window.Reporter = {
         let myAllocated = 0;
         
         // Sort members by fee (highest first) to allocate fairly
+        // Bạn "Chốt sau" xếp cuối (HP chưa biết, không tranh phần bạn đã chốt)
         const sortedMembers = [...familyGroup.members].sort((a, b) => {
+          const pa = pendingSet.has(a) ? 1 : 0, pb = pendingSet.has(b) ? 1 : 0;
+          if (pa !== pb) return pa - pb;
           return (familyStudentFees[b] || 0) - (familyStudentFees[a] || 0);
         });
         
@@ -160,6 +166,8 @@ window.Reporter = {
       // Nợ cũ đầu kỳ của bạn này (chỉ tính khi còn trong DS tổng — bạn nghỉ tự rớt ra)
       const noCu = priorDebtMap.get((mshs || '').toUpperCase()) || 0;
       const hocPhiIsDefault = classRows.some(r => r.hocPhiIsDefault);
+      // Học kèm "Chốt sau": HP chưa biết — vẫn nhắc, không cộng tổng
+      const hocPhiPending = classRows.some(r => r.hocPhiPending);
 
       // Check if student has active package
       const packageInfo = Storage.isPackageActive(mshs, monthYear);
@@ -172,8 +180,16 @@ window.Reporter = {
       const noCuConLai = noCu - daTraNo;
       let conThieu = Math.max(0, tongPhaiThu - adjustedPayment);
 
-      // Học sinh miễn phí (HP = 0 và không nợ)
-      if (tongHocPhi === 0 && noCu === 0) {
+      // Học kèm "Chốt sau": HP chưa biết — vẫn Chưa đóng/nhắc, nhưng thiếu = 0 (không cộng tổng)
+      if (hocPhiPending && noCu === 0 && !packageInfo.active) {
+        if (adjustedPayment > 0) {
+          trangThai = APP_CONFIG.STATUS.PARTIAL;
+        } else {
+          trangThai = APP_CONFIG.STATUS.UNPAID;
+        }
+        soTienThieu = 0;
+        conThieu = 0;
+      } else if (tongHocPhi === 0 && noCu === 0 && !hocPhiPending) {
         trangThai = 'MIỄN PHÍ';
       } else if (packageInfo.active) {
         // Gói chỉ bao HP tháng này, KHÔNG xóa nợ cũ
@@ -234,8 +250,14 @@ window.Reporter = {
       }
 
       // 0.5b. HP đoán mặc định (ô trống) → nhắc kiểm tra, nhất là bé mới HP lẻ
-      if (hocPhiIsDefault && tongHocPhi > 0) {
+      // (Bạn "Chốt sau" không vàng — đã có dấu riêng bên dưới)
+      if (hocPhiIsDefault && tongHocPhi > 0 && !hocPhiPending) {
         notes.push(`⚠️ HP mặc định (ô trống) — kiểm tra lại`);
+      }
+
+      // 0.5c. Học kèm "Chốt sau": chỉ nhắc, không cộng tổng
+      if (hocPhiPending) {
+        notes.push(`⏳ HP chốt sau — chỉ nhắc, không cộng tổng`);
       }
 
       // 0.5. Điều chỉnh học phí
@@ -283,6 +305,7 @@ window.Reporter = {
         teacher: teachers.join(', '),
         phone: primaryRow.phone || '',
         tongHocPhi: tongHocPhi, // HP tháng này — Tab 3/4 đọc cột này, KHÔNG gồm nợ
+        hocPhiPending: hocPhiPending, // true = "Chốt sau": chỉ nhắc, không cộng tổng
         noCu: noCu,
         tongPhaiThu: tongPhaiThu,
         conThieu: conThieu,
@@ -330,11 +353,17 @@ window.Reporter = {
 
     for (const row of reportRows) {
       stats.tongThu += (row.tongDaDong || 0);
-      stats.tongHocPhi += (row.tongHocPhi || 0);
-      stats.tongNoCu += (row.noCu || 0);
-      stats.noCuDaThu += (row.daTraNo || 0);
-      stats.tongPhaiThu += (row.tongPhaiThu || 0);
-      stats.conThieu += (row.conThieu || 0);
+      // Bạn "Chốt sau" (HP chưa biết): chỉ nhắc, KHÔNG cộng vào bất kỳ tổng nào
+      if (!row.hocPhiPending) {
+        stats.tongHocPhi += (row.tongHocPhi || 0);
+        stats.tongNoCu += (row.noCu || 0);
+        stats.noCuDaThu += (row.daTraNo || 0);
+        stats.tongPhaiThu += (row.tongPhaiThu || 0);
+        stats.conThieu += (row.conThieu || 0);
+      } else {
+        stats.tongNoCu += (row.noCu || 0);
+        stats.noCuDaThu += (row.daTraNo || 0);
+      }
       
       switch (row.trangThai) {
         case APP_CONFIG.STATUS.PAID:

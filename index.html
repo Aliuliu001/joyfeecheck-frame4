@@ -551,7 +551,7 @@
                 <td style="font-weight: 600;" x-text="row.fullName"></td>
                 <td x-text="row.className"></td>
                 <td x-text="row.teacher"></td>
-                <td class="col-amount" :style="row.hocPhiIsDefault ? 'background: #FFF3CD; font-weight: 700;' : ''" :title="row.hocPhiIsDefault ? 'Ô HP trống — app đoán, bạn kiểm tra lại' : ''" x-text="$formatCurrency(row.tongHocPhi)"></td>
+                <td class="col-amount" :style="row.hocPhiPending ? 'background: #E3F2FD; font-weight: 700;' : (row.hocPhiIsDefault ? 'background: #FFF3CD; font-weight: 700;' : '')" :title="row.hocPhiPending ? 'Học kèm — HP chốt sau, chỉ nhắc không cộng tổng' : (row.hocPhiIsDefault ? 'Ô HP trống — app đoán, bạn kiểm tra lại' : '')" x-text="row.hocPhiPending ? 'Chốt sau' : $formatCurrency(row.tongHocPhi)"></td>
                 <td class="col-amount" x-text="$formatCurrency(row.noCu || 0)"></td>
                 <td class="col-amount" style="font-weight: 700;" x-text="$formatCurrency(row.tongPhaiThu || row.tongHocPhi)"></td>
                 <td class="col-amount" x-text="$formatCurrency(row.chuyenKhoanVTB)"></td>
