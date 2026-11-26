@@ -26,43 +26,62 @@ window.Importer = {
     return -1;
   },
 
+  normalizeHeader: function(value) {
+    return Utils.normalizeText(value || '').replace(/[\s_-]+/g, '');
+  },
+
+  findHeaderRow: function(matrix, requiredGroups, maxRows = 40) {
+    let best = { index: -1, score: 0, headers: [] };
+    for (let i = 0; i < Math.min(maxRows, matrix.length); i++) {
+      const headers = matrix[i] || [];
+      const normalized = headers.map(h => this.normalizeHeader(h));
+      const score = requiredGroups.reduce((total, aliases) => total + (aliases.some(alias => normalized.some(h => h.includes(this.normalizeHeader(alias)))) ? 1 : 0), 0);
+      if (score > best.score) best = { index: i, score, headers };
+    }
+    return best;
+  },
+
+  findSheetCandidates: function(workbook, requiredGroups, options = {}) {
+    return workbook.SheetNames.map(name => {
+      const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '' });
+      const header = this.findHeaderRow(matrix, requiredGroups, options.maxRows || 40);
+      const normalizedName = Utils.normalizeText(name).replace(/[\s_-]+/g, '');
+      const aliases = options.nameAliases || [];
+      const nameScore = aliases.some(alias => normalizedName.includes(Utils.normalizeText(alias).replace(/[\s_-]+/g, ''))) ? 100 : 0;
+      return { name, matrix, headerRowIdx: header.index, headerScore: header.score, score: nameScore + header.score, valid: header.score >= requiredGroups.length };
+    }).filter(item => item.valid);
+  },
+
+  selectUniqueSheet: function(workbook, requiredGroups, options = {}) {
+    const candidates = this.findSheetCandidates(workbook, requiredGroups, options);
+    if (!candidates.length) throw new Error(options.missingMessage || 'Không tìm thấy sheet có đủ cột bắt buộc');
+    candidates.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    const best = candidates[0];
+    const equallyBest = candidates.filter(c => c.score === best.score);
+    if (equallyBest.length > 1) {
+      throw new Error(`Có nhiều sheet cùng phù hợp: ${equallyBest.map(c => c.name).join(', ')}. Hãy giữ đúng 1 sheet dữ liệu hoặc đổi tên sheet theo hướng dẫn.`);
+    }
+    return best;
+  },
+
+  requireColumns: function(headers, fields, label) {
+    const missing = Object.entries(fields).filter(([, index]) => index < 0).map(([name]) => name);
+    if (missing.length) throw new Error(`${label} thiếu cột bắt buộc: ${missing.join(', ')}`);
+  },
+
   // Parse Danh Sách Học Sinh (Google Sheets)
   parseGoogleSheets: async function(file) {
     try {
       const data = await this.readFileAsArrayBuffer(file);
       const workbook = XLSX.read(data, { type: 'array' });
       
-      // Tìm sheet chứa dữ liệu (có MSHS hoặc Full name)
-      let dataSheet = workbook.Sheets[workbook.SheetNames[0]];
-      let dataMatrix = XLSX.utils.sheet_to_json(dataSheet, { header: 1 });
-      
-      for (const sheetName of workbook.SheetNames) {
-        const sheet = workbook.Sheets[sheetName];
-        const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        const text = JSON.stringify(matrix).toLowerCase();
-        if (text.includes('mã học sinh') || text.includes('mshs') || text.includes('full name')) {
-          dataSheet = sheet;
-          dataMatrix = matrix;
-          break;
-        }
-      }
-
-      // Xác định header row (dòng có nhiều từ khóa header nhất)
-      let headerRowIdx = 0;
-      let maxMatches = 0;
-      const expectedKeywords = ['stt', 'mshs', 'lớp', 'họ tên', 'stk'];
-      
-      for (let i = 0; i < Math.min(10, dataMatrix.length); i++) {
-        const row = dataMatrix[i];
-        if (!row || row.length === 0) continue;
-        const rowStr = row.map(cell => Utils.normalizeText(cell || '')).join(' ');
-        let matches = expectedKeywords.filter(kw => rowStr.includes(Utils.normalizeText(kw))).length;
-        if (matches > maxMatches) {
-          maxMatches = matches;
-          headerRowIdx = i;
-        }
-      }
-
+      const selection = this.selectUniqueSheet(
+        workbook,
+        [['mshs', 'mã học sinh', 'mã hs'], ['họ tên', 'full name']],
+        { nameAliases: ['ds_hoc_sinh', 'danh sach hoc sinh'], missingMessage: 'Không tìm thấy sheet DS học sinh có cả cột MSHS và Họ tên' }
+      );
+      const dataMatrix = selection.matrix;
+      const headerRowIdx = selection.headerRowIdx;
       const headers = dataMatrix[headerRowIdx];
       const students = [];
       
@@ -137,7 +156,7 @@ window.Importer = {
     } catch (e) {
       console.error(e);
       if (window.Utils) window.Utils.showToast('Lỗi khi đọc file học sinh: ' + e.message, 'error');
-      return { students: [], rawHeaders: [] };
+      throw e;
     }
   },
 
@@ -146,34 +165,13 @@ window.Importer = {
     try {
       const data = await this.readFileAsArrayBuffer(file);
       const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const dataMatrix = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-      let headerRowIdx = -1;
-      let bestScore = 0;
-      // Duyệt rộng hơn (sao kê VietinBank có block "thông tin tài khoản" phía trên
-      // nên dòng tiêu đề thực tế có thể nằm sâu, ví dụ row 24).
-      for (let i = 0; i < Math.min(40, dataMatrix.length); i++) {
-        const row = dataMatrix[i];
-        if (!row) continue;
-        const rowStr = row.join(' ').toLowerCase();
-        // Ưu tiên dòng tiêu đề chuẩn: chứa "đối ứng" (STK đối ứng + Tên TK đối ứng)
-        if (rowStr.includes('đối ứng')) {
-          headerRowIdx = i;
-          break;
-        }
-        // Dự phòng: dòng có "ghi có"/"credit"
-        const score = (rowStr.includes('ghi có') ? 1 : 0) + (rowStr.includes('credit') ? 1 : 0);
-        if (score > bestScore) {
-          bestScore = score;
-          headerRowIdx = i;
-        }
-      }
-
-      if (headerRowIdx === -1) {
-        throw new Error('Không tìm thấy dòng tiêu đề sao kê VietinBank');
-      }
-
+      const selection = this.selectUniqueSheet(
+        workbook,
+        [['ngày gd', 'ngày giao dịch', 'ngaygd', 'date'], ['ghi có', 'credit'], ['mô tả', 'nội dung', 'diễn giải', 'mota', 'details']],
+        { missingMessage: 'Không tìm thấy sheet sao kê VietinBank có cột Ngày, Nội dung và Ghi có' }
+      );
+      const dataMatrix = selection.matrix;
+      const headerRowIdx = selection.headerRowIdx;
       const headers = dataMatrix[headerRowIdx];
       const colMap = {
         stt: this.findColumnIndex(headers, ['STT']),
@@ -214,7 +212,7 @@ window.Importer = {
     } catch (e) {
       console.error(e);
       if (window.Utils) window.Utils.showToast('Lỗi khi đọc sao kê VietinBank: ' + e.message, 'error');
-      return [];
+      throw e;
     }
   },
 
@@ -223,25 +221,13 @@ window.Importer = {
     try {
       const data = await this.readFileAsArrayBuffer(file);
       const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const dataMatrix = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-      let headerRowIdx = -1;
-      for (let i = 0; i < Math.min(20, dataMatrix.length); i++) {
-        const row = dataMatrix[i];
-        if (!row) continue;
-        const rowStr = row.join(' ').toLowerCase();
-        if ((rowStr.includes('transaction date') && rowStr.includes('credit')) || 
-            (rowStr.includes('ngày') && rowStr.includes('ghi có'))) {
-          headerRowIdx = i;
-          break;
-        }
-      }
-
-      if (headerRowIdx === -1) {
-        throw new Error('Không tìm thấy dòng tiêu đề sao kê TPBank');
-      }
-
+      const selection = this.selectUniqueSheet(
+        workbook,
+        [['transaction date', 'ngày giao dịch', 'ngày gd'], ['credit', 'ghi có'], ['explanation', 'diễn giải', 'nội dung']],
+        { missingMessage: 'Không tìm thấy sheet sao kê TPBank có cột Ngày, Diễn giải và Credit/Ghi có' }
+      );
+      const dataMatrix = selection.matrix;
+      const headerRowIdx = selection.headerRowIdx;
       const headers = dataMatrix[headerRowIdx];
       const colMap = {
         date: this.findColumnIndex(headers, ['Transaction Date', 'Ngày giao dịch', 'Ngày', 'Ngày GD']),
@@ -296,24 +282,13 @@ window.Importer = {
     try {
       const data = await this.readFileAsArrayBuffer(file);
       const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const dataMatrix = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-      let headerRowIdx = -1;
-      for (let i = 0; i < Math.min(10, dataMatrix.length); i++) {
-        const row = dataMatrix[i];
-        if (!row) continue;
-        const rowStr = row.join(' ').toLowerCase();
-        if (rowStr.includes('số tiền') || rowStr.includes('số tiền đóng')) {
-          headerRowIdx = i;
-          break;
-        }
-      }
-
-      if (headerRowIdx === -1) {
-        throw new Error('Không tìm thấy dòng tiêu đề file Tiền mặt');
-      }
-
+      const selection = this.selectUniqueSheet(
+        workbook,
+        [['mshs', 'mã hs', 'mã học sinh'], ['số tiền', 'số tiền đóng']],
+        { nameAliases: ['tien_mat', 'tiền mặt'], missingMessage: 'Không tìm thấy sheet Tiền mặt có cột MSHS và Số tiền' }
+      );
+      const dataMatrix = selection.matrix;
+      const headerRowIdx = selection.headerRowIdx;
       const headers = dataMatrix[headerRowIdx];
       const colMap = {
         date: this.findColumnIndex(headers, ['NGAY', 'Ngày']),
@@ -346,7 +321,7 @@ window.Importer = {
     } catch (e) {
       console.error(e);
       if (window.Utils) window.Utils.showToast('Lỗi khi đọc file Tiền mặt: ' + e.message, 'error');
-      return [];
+      throw e;
     }
   },
 
@@ -357,28 +332,11 @@ window.Importer = {
       const workbook = XLSX.read(data, { type: 'array' });
 
       const result = { prevThucTe: [], prevInvoiceStudents: [] };
-
-      // Parse both sheets
-      for (const sheetName of workbook.SheetNames) {
-        const sheet = workbook.Sheets[sheetName];
-        const dataMatrix = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-        // Find header row
-        let headerRowIdx = 0;
-        let maxMatches = 0;
-        const expectedKeywords = ['mshs', 'họ tên', 'lớp', 'học phí', 'stt'];
-
-        for (let i = 0; i < Math.min(15, dataMatrix.length); i++) {
-          const row = dataMatrix[i];
-          if (!row || row.length === 0) continue;
-          const rowStr = row.map(cell => Utils.normalizeText(cell || '')).join(' ');
-          let matches = expectedKeywords.filter(kw => rowStr.includes(Utils.normalizeText(kw))).length;
-          if (matches > maxMatches) {
-            maxMatches = matches;
-            headerRowIdx = i;
-          }
-        }
-
+      const required = [['mshs', 'mã hs', 'mã học sinh'], ['họ tên', 'full name']];
+      const candidates = this.findSheetCandidates(workbook, required, { maxRows: 20 });
+      const readStudents = (candidate) => {
+        const dataMatrix = candidate.matrix;
+        const headerRowIdx = candidate.headerRowIdx;
         const headers = dataMatrix[headerRowIdx];
         const colMap = {
           stt: this.findColumnIndex(headers, ['STT']),
@@ -391,13 +349,11 @@ window.Importer = {
           trangThai: this.findColumnIndex(headers, ['Trạng thái', 'Status']),
           ghiChu: this.findColumnIndex(headers, ['Ghi chú', 'Note'])
         };
-
+        this.requireColumns(headers, { MSHS: colMap.mshs, 'Họ tên': colMap.fullName }, `Sheet ${candidate.name}`);
         const students = [];
         for (let i = headerRowIdx + 1; i < dataMatrix.length; i++) {
           const row = dataMatrix[i];
-          if (!row || row.length === 0) continue;
-          if (!row[colMap.mshs] && !row[colMap.fullName]) continue;
-
+          if (!row || row.length === 0 || (!row[colMap.mshs] && !row[colMap.fullName])) continue;
           students.push({
             mshs: (row[colMap.mshs] || '').toString().trim().toUpperCase(),
             fullName: colMap.fullName >= 0 ? (row[colMap.fullName] || '').toString().trim() : '',
@@ -409,35 +365,24 @@ window.Importer = {
             ghiChu: colMap.ghiChu >= 0 ? (row[colMap.ghiChu] || '').toString().trim() : ''
           });
         }
+        return students;
+      };
 
-        // Determine which sheet this is
-        const normalizedName = Utils.normalizeText(sheetName);
-        if (normalizedName.includes('ghihd') || normalizedName.includes('ghideshow') || normalizedName.includes('viet hd') || normalizedName.includes('danh sach viet')) {
-          result.prevInvoiceStudents = students;
-          console.log(`DS Ghi HĐ tháng trước: ${students.length} HS (từ sheet "${sheetName}")`);
-        } else if (normalizedName.includes('thuc te') || normalizedName.includes('thucTe')) {
-          result.prevThucTe = students;
-          console.log(`DS Thực tế tháng trước: ${students.length} HS (từ sheet "${sheetName}")`);
-        } else {
-          // Fallback: unknown sheet name
-          // If only 1 sheet in file → treat as invoice list (prevInvoiceStudents)
-          // If 2+ sheets → first unknown = prevThucTe, second = prevInvoice
-          if (workbook.SheetNames.length === 1) {
-            result.prevInvoiceStudents = students;
-            console.log(`DS HĐ tháng trước (1 sheet fallback): ${students.length} HS (từ sheet "${sheetName}")`);
-          } else if (result.prevThucTe.length === 0) {
-            result.prevThucTe = students;
-          } else {
-            result.prevInvoiceStudents = students;
-          }
-        }
+      const byName = (aliases) => candidates.filter(c => aliases.some(alias => Utils.normalizeText(c.name).replace(/[\s_-]+/g, '').includes(Utils.normalizeText(alias).replace(/[\s_-]+/g, ''))));
+      const thucTe = byName(['ds_thuc_te', 'thực tế', 'thuc te']);
+      const ghiHD = byName(['ds_ghi_hd', 'ghi hd', 'viết hđ', 'viet hd', 'danh sach viet']);
+      if (thucTe.length > 1 || ghiHD.length > 1) throw new Error('Có nhiều sheet Kế toán cùng vai trò. Hãy đổi tên rõ DS_THUC_TE và DS_GHI_HD rồi nhập lại.');
+      if (!thucTe.length || !ghiHD.length) {
+        throw new Error('File Kế toán cần đủ 2 sheet tên DS_THUC_TE và DS_GHI_HD (không đoán theo thứ tự để tránh nhầm dữ liệu).');
       }
-
+      result.prevThucTe = readStudents(thucTe[0]);
+      result.prevInvoiceStudents = readStudents(ghiHD[0]);
       return result;
+
     } catch (e) {
       console.error(e);
       if (window.Utils) window.Utils.showToast('Lỗi khi đọc file Kế toán: ' + e.message, 'error');
-      return { prevThucTe: [], prevInvoiceStudents: [] };
+      throw e;
     }
   },
 

@@ -149,7 +149,10 @@ const APP_CONFIG = {
     PREV_MONTH_PAYMENTS: 'joy_prev_month_payments',
     PACKAGES: 'joy_packages',
     PRIOR_DEBT: 'joy_prior_debt', // Nợ chốt tháng trước: {sourceMonth, rows:[{mshs,fullName,className,amount}]}
-    CLOSING_DEBT: 'joy_closing_debt' // Nợ chốt cuối tháng: {'YYYY-MM': {rows, closedDate}}
+    CLOSING_DEBT: 'joy_closing_debt', // Nợ chốt cuối tháng: {'YYYY-MM': {rows, closedDate}}
+    STUDENT_DIRECTORY: 'joy_student_directory', // Danh bạ để hiện tên/lớp cho mapping và gói
+    MONTH_SESSIONS: 'joy_month_sessions', // Snapshot dữ liệu đối soát theo từng tháng
+    BACKUP_META: 'joy_backup_meta' // Lần tải JSON gần nhất và cờ có thay đổi chưa sao lưu
   },
 
   // Default hoc phi

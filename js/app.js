@@ -241,8 +241,8 @@ function appComponent() {
 
         getStudentDetails(mshs) {
       if (!mshs) return { fullName: '', className: '' };
-      const s = (this.$store.appState.students || []).find(st => st.mshs === mshs);
-      return s ? { fullName: s.fullName || '', className: s.className || '' } : { fullName: '', className: '' };
+      const found = window.Storage.resolveStudent(mshs, this.$store.appState.students || []);
+      return found.found ? { fullName: found.fullName, className: found.className } : { fullName: 'Chưa có trong danh sách', className: '' };
     },
 
     init() {
@@ -291,9 +291,13 @@ function appComponent() {
       }
     },
     init() {
-      // Set default month
+      // Mở lại tháng đã làm gần nhất; chỉ dùng tháng hệ thống nếu chưa có phiên nào.
       const now = new Date();
-      this.$store.appState.monthYear = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2, '0')}`;
+      const fallbackMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2, '0')}`;
+      const savedMonth = window.Storage._get('joy_active_month', '');
+      this.$store.appState.monthYear = savedMonth || fallbackMonth;
+      this.loadMonthSession(this.$store.appState.monthYear, true);
+      this.$watch('$store.appState.monthYear', (month) => this.changeMonthSession(month));
       
       // Load UI settings
       this.loadSettingsUI();
@@ -392,6 +396,47 @@ function appComponent() {
       return s.dsHocSinh && (s.vietinBank || s.tpBank || s.tienMat);
     },
 
+    saveCurrentMonthSession(monthYear = this.$store.appState.monthYear) {
+      const state = this.$store.appState;
+      state.priorDebtRows = this.priorDebtRows || [];
+      window.Storage.saveMonthSession(monthYear, state);
+      window.Storage._set('joy_active_month', monthYear);
+      window.Storage.markBackupDirty();
+    },
+    loadMonthSession(month, silent = false) {
+      const session = window.Storage.loadMonthSession(month);
+      if (!session) return false;
+      const state = this.$store.appState;
+      window.Storage.sessionStateKeys().forEach(key => {
+        if (session[key] !== undefined) state[key] = session[key];
+      });
+      this.priorDebtRows = session.priorDebtRows || [];
+      this.priorDebtText = this.priorDebtRows.map(r => [r.mshs, r.fullName || '', r.className || '', r.amount].join('\t')).join('\n');
+      this.ignoredKeys = window.Storage._get('joy_ignored_tx', []) || [];
+      if (state.students && state.students.length) window.Storage.saveStudentDirectory(state.students, month);
+      if (!silent) {
+        this.loadSettingsUI();
+        if (state.students && state.students.length) this.runMatching();
+        this.showToast(`📂 Đã mở lại phiên tháng ${month}`, 'success');
+      }
+      return true;
+    },
+    changeMonthSession(month) {
+      if (!month) return;
+      const state = this.$store.appState;
+      const previous = window.Storage._get('joy_active_month', '');
+      if (previous && previous !== month) this.saveCurrentMonthSession(previous);
+      window.Storage._set('joy_active_month', month);
+      if (!this.loadMonthSession(month)) {
+        state.students = []; state.vtbTransactions = []; state.tpbTransactions = []; state.cashPayments = [];
+        state.prevInvoiceStudents = []; state.prevThucTeStudents = [];
+        state.importStatus = { dsHocSinh: false, vietinBank: false, tpBank: false, tienMat: false, prevInvoice: false, priorDebt: false };
+        this.priorDebtRows = []; this.priorDebtText = ''; this.debtTicked = []; this.debtDirty = false;
+        state.matchingDone = false; state.reportRows = [];
+        this.showToast(`🗓️ Tháng ${month} chưa có dữ liệu. Nhập file mới, dữ liệu tháng khác vẫn được giữ riêng.`, 'info');
+      }
+    },
+
     async handleFileImport(event, type) {
       const file = event.target ? event.target.files[0] : null;
       if (!file) return;
@@ -415,31 +460,41 @@ function appComponent() {
         const state = this.$store.appState;
         
         switch(type) {
-          case 'dsHocSinh':
+          case 'dsHocSinh': {
             const parsed = await window.Importer.parseGoogleSheets(file);
-            state.students = parsed.students || parsed;
-            result = Array.isArray(parsed.students) ? parsed.students : parsed;
+            result = parsed.students || parsed;
+            if (!Array.isArray(result) || !result.length) throw new Error('Danh sách học sinh không có dòng hợp lệ');
+            state.students = result;
             break;
-          case 'vietinBank':
-            state.vtbTransactions = await window.Importer.parseSaoKeVietinBank(file);
-            result = state.vtbTransactions;
+          }
+          case 'vietinBank': {
+            result = await window.Importer.parseSaoKeVietinBank(file);
+            if (!Array.isArray(result) || !result.length) throw new Error('Sao kê VietinBank không có giao dịch tiền vào hợp lệ');
+            state.vtbTransactions = result;
             break;
-          case 'tpBank':
-            state.tpbTransactions = await window.Importer.parseSaoKeTPBank(file);
-            result = state.tpbTransactions;
+          }
+          case 'tpBank': {
+            result = await window.Importer.parseSaoKeTPBank(file);
+            if (!Array.isArray(result) || !result.length) throw new Error('Sao kê TPBank không có giao dịch tiền vào hợp lệ');
+            state.tpbTransactions = result;
             break;
-          case 'tienMat':
-            state.cashPayments = await window.Importer.parseTienMat(file);
-            result = state.cashPayments;
+          }
+          case 'tienMat': {
+            result = await window.Importer.parseTienMat(file);
+            if (!Array.isArray(result) || !result.length) throw new Error('File tiền mặt không có dòng hợp lệ');
+            state.cashPayments = result;
             break;
-          case 'prevInvoice':
+          }
+          case 'prevInvoice': {
             const prevData = await window.Importer.parsePrevInvoiceFile(file);
-            state.prevInvoiceStudents = prevData.prevInvoiceStudents;
-            state.prevThucTeStudents = prevData.prevThucTe;
-            result = prevData.prevInvoiceStudents;
+            result = prevData.prevInvoiceStudents || [];
+            if (!result.length && !(prevData.prevThucTe || []).length) throw new Error('File kế toán không có dòng hợp lệ');
+            state.prevInvoiceStudents = result;
+            state.prevThucTeStudents = prevData.prevThucTe || [];
             window.Storage._set('joy_prev_invoice_students', result);
-            window.Storage._set('joy_prev_thuc_te_students', prevData.prevThucTe);
+            window.Storage._set('joy_prev_thuc_te_students', state.prevThucTeStudents);
             break;
+          }
           case 'priorDebt':
             // File Excel nợ chốt tháng trước (form ChotNo do app xuất)
             const debtRows = await window.Importer.parseDebtFile(file);
@@ -468,8 +523,14 @@ function appComponent() {
             break;
         }
         
+        if (!Array.isArray(result) || result.length === 0) {
+          throw new Error('Không có dòng dữ liệu hợp lệ. Dữ liệu cũ vẫn được giữ nguyên.');
+        }
+        if (type === 'dsHocSinh') window.Storage.saveStudentDirectory(state.students, state.monthYear);
+        this.loadSettingsUI();
         state.importStatus[type] = true;
-        this.showToast(`✅ Import ${file.name} thành công: ${result?.length || 0} dòng`, 'success');
+        this.saveCurrentMonthSession();
+        this.showToast(`✅ Import ${file.name} thành công: ${result.length} dòng`, 'success');
         
       } catch (err) {
         this.showToast(`❌ Lỗi import file: ${err.message}`, 'error');
@@ -1719,6 +1780,13 @@ function appComponent() {
       backup.joy_fee_adjustments = K.joy_fee_adjustments || [];
       backup.joy_referrals = K.joy_referrals || [];
       backup.joy_manual_notes = K.joy_manual_notes || [];
+      const sessions = window.Storage.listMonthSessions ? window.Storage.listMonthSessions() : {};
+      backup.summary = {
+        months: Object.keys(sessions).sort(),
+        sessionRows: Object.fromEntries(Object.entries(sessions).map(([month, session]) => [month, session.rowCounts || {}])),
+        localStorageKeys: Object.keys(backup.keys).length
+      };
+      window.Storage.markBackupExported(backup.summary);
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1838,19 +1906,26 @@ function appComponent() {
       reader.onload = (e) => {
         try {
           const data = JSON.parse(e.target.result);
-          // File mới (v2): khôi phục TẤT CẢ key joy_* đã quét lúc backup → không sót loại nào
+          // File mới (v2): khôi phục nguyên trạng — không gộp để tránh trộn sao kê/tháng.
           if (data.keys && typeof data.keys === 'object') {
-            Object.keys(data.keys).forEach(k => {
-              if (k === 'joy_stk_phu') window.Storage.mergeSTKPhu(data.keys[k]);
-              else if (k === 'joy_keywords') window.Storage.mergeKeywords(data.keys[k]);
-              else if (k === 'joy_family_groups') window.Storage.mergeFamilyGroups(data.keys[k]);
-              else if (k.startsWith('joy_')) window.Storage._set(k, data.keys[k]);
-            });
+            if (!window.confirm('Khôi phục nguyên trạng sẽ thay toàn bộ dữ liệu Joy đang có trên máy này bằng file backup. Dữ liệu chưa tải backup sẽ mất. Anh có muốn tiếp tục?')) return;
+            const beforeRestore = {};
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.startsWith('joy_')) beforeRestore[key] = localStorage.getItem(key);
+            }
+            // Giữ một bản cứu hộ trong cùng trình duyệt trước khi thay thế.
+            localStorage.setItem(`joy_restore_safety_${Date.now()}`, JSON.stringify(beforeRestore));
+            Object.keys(beforeRestore).forEach(key => localStorage.removeItem(key));
+            Object.keys(data.keys).forEach(key => { if (key.startsWith('joy_')) window.Storage._set(key, data.keys[key]); });
+            const restoredMonth = window.Storage._get('joy_active_month', this.$store.appState.monthYear);
+            this.$store.appState.monthYear = restoredMonth || this.$store.appState.monthYear;
+            this.loadMonthSession(this.$store.appState.monthYear, true);
             this.ignoredKeys = window.Storage._get('joy_ignored_tx', []);
             this.loadSettingsUI();
-            this.runMatching();
+            if ((this.$store.appState.students || []).length) this.runMatching();
             const nKeys = Object.keys(data.keys).length;
-            this.showToast(`✅ Đã khôi phục backup (${nKeys} nhóm dữ liệu, giữ nguyên dữ liệu tháng này nếu trùng)`, 'success');
+            this.showToast(`✅ Đã khôi phục nguyên trạng ${nKeys} nhóm dữ liệu. Đang mở tháng ${this.$store.appState.monthYear}.`, 'success');
             return;
           }
           // File cũ (v1): GỘP (merge) thay vì ghi đè → không mất dữ liệu mới nhập tháng này

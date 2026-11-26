@@ -530,6 +530,81 @@ window.Storage = {
     return `${y}-${String(mo).padStart(2, '0')}`;
   },
 
+  // DANH BẠ HỌC SINH — chỉ phục vụ hiển thị tên/lớp, không dùng thay DS đang học để tính tiền
+  normalizeMSHS: function(mshs) {
+    return String(mshs || '').trim().toUpperCase();
+  },
+  saveStudentDirectory: function(students, sourceMonth) {
+    const old = this._get(APP_CONFIG.STORAGE_KEYS.STUDENT_DIRECTORY, {});
+    const next = { ...old };
+    (students || []).forEach(student => {
+      const mshs = this.normalizeMSHS(student && student.mshs);
+      if (!mshs) return;
+      const existing = next[mshs] || { mshs, classes: [] };
+      const classes = new Set([...(existing.classes || []), ...(String(student.className || '').split(',').map(v => v.trim()).filter(Boolean))]);
+      next[mshs] = {
+        ...existing,
+        mshs,
+        fullName: student.fullName || existing.fullName || '',
+        classes: [...classes],
+        lastSourceMonth: sourceMonth || existing.lastSourceMonth || '',
+        updatedDate: new Date().toISOString()
+      };
+    });
+    return this._set(APP_CONFIG.STORAGE_KEYS.STUDENT_DIRECTORY, next);
+  },
+  loadStudentDirectory: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.STUDENT_DIRECTORY, {});
+  },
+  resolveStudent: function(mshs, currentStudents) {
+    const code = this.normalizeMSHS(mshs);
+    const current = (currentStudents || []).filter(s => this.normalizeMSHS(s.mshs) === code);
+    const directory = this.loadStudentDirectory()[code];
+    const classes = new Set(current.map(s => s.className).filter(Boolean));
+    (directory && directory.classes || []).forEach(c => classes.add(c));
+    const fullName = (current.find(s => s.fullName) || {}).fullName || (directory && directory.fullName) || '';
+    return { mshs: code, fullName, className: [...classes].join(', '), found: Boolean(fullName || classes.size), source: current.length ? 'danh sách tháng này' : (directory ? 'danh bạ đã lưu' : '') };
+  },
+
+  // PHIÊN THEO THÁNG — dữ liệu nhập/matching được giữ riêng, không đè tháng khác
+  sessionStateKeys: function() {
+    return ['students', 'vtbTransactions', 'tpbTransactions', 'cashPayments', 'prevInvoiceStudents', 'prevThucTeStudents', 'importStatus', 'defaultFee', 'priorDebtRows'];
+  },
+  saveMonthSession: function(monthYear, state, extra = {}) {
+    if (!monthYear) return false;
+    const sessions = this._get(APP_CONFIG.STORAGE_KEYS.MONTH_SESSIONS, {});
+    const snapshot = {};
+    this.sessionStateKeys().forEach(key => { snapshot[key] = state[key]; });
+    snapshot.monthYear = monthYear;
+    snapshot.savedDate = new Date().toISOString();
+    snapshot.rowCounts = {
+      students: (snapshot.students || []).length,
+      vtb: (snapshot.vtbTransactions || []).length,
+      tpb: (snapshot.tpbTransactions || []).length,
+      cash: (snapshot.cashPayments || []).length,
+      prevThucTe: (snapshot.prevThucTeStudents || []).length,
+      prevInvoice: (snapshot.prevInvoiceStudents || []).length
+    };
+    sessions[monthYear] = { ...(sessions[monthYear] || {}), ...snapshot, ...extra };
+    return this._set(APP_CONFIG.STORAGE_KEYS.MONTH_SESSIONS, sessions);
+  },
+  loadMonthSession: function(monthYear) {
+    return this._get(APP_CONFIG.STORAGE_KEYS.MONTH_SESSIONS, {})[monthYear] || null;
+  },
+  listMonthSessions: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.MONTH_SESSIONS, {});
+  },
+  markBackupDirty: function() {
+    const meta = this._get(APP_CONFIG.STORAGE_KEYS.BACKUP_META, {});
+    return this._set(APP_CONFIG.STORAGE_KEYS.BACKUP_META, { ...meta, dirty: true, lastChangeDate: new Date().toISOString() });
+  },
+  markBackupExported: function(summary) {
+    return this._set(APP_CONFIG.STORAGE_KEYS.BACKUP_META, { dirty: false, lastBackupDate: new Date().toISOString(), summary: summary || {} });
+  },
+  loadBackupMeta: function() {
+    return this._get(APP_CONFIG.STORAGE_KEYS.BACKUP_META, {});
+  },
+
   // BACKUP & RESTORE
   exportFullBackup: function() {
     const backup = {};

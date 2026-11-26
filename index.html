@@ -114,7 +114,7 @@
                  accept=".xlsx, .xls, .csv" 
                  @change="handleFileImport($event, 'dsHocSinh')"
                  hidden>
-          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Danh sách master học sinh. Nguồn gốc dữ liệu, cập nhật liên tục.</p>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Cần MSHS + Họ tên. Có sheet bìa/đổi thứ tự vẫn được; nếu nhiều sheet giống nhau app sẽ dừng báo rõ, không tự đoán.</p>
         </div>
         
         <!-- VietinBank -->
@@ -196,7 +196,7 @@
                  accept=".xlsx, .xls, .csv" 
                  @change="handleFileImport($event, 'prevInvoice')"
                  hidden>
-          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">File Excel Kế toán (2 sheet: DS Thực tế + DS Ghi HĐ). Dùng để so sánh: ai tăng/giảm so với tháng này.</p>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Cần 2 sheet: <b>DS_THUC_TE</b> và <b>DS_GHI_HD</b>. App không đoán theo thứ tự để tránh nhập nhầm.</p>
         </div>
 
         <!-- Nợ chốt tháng trước: import file Excel form ChotNo (do app xuất cuối tháng trước) -->
@@ -2096,15 +2096,15 @@
 
   <!-- Scripts -->
   <script src="lib/xlsx.full.min.js"></script>
-  <script src="js/datamodel.js?v=401"></script>
+  <script src="js/datamodel.js?v=403"></script>
   <script src="js/utils.js?v=401"></script>
-  <script src="js/storage.js?v=402"></script>
-  <script src="js/importer.js?v=401"></script>
+  <script src="js/storage.js?v=403"></script>
+  <script src="js/importer.js?v=403"></script>
   <script src="js/matcher.js?v=401"></script>
   <script src="js/reporter.js?v=402"></script>
   <script src="js/accounting.js?v=401"></script>
   <script src="js/exporter.js?v=402"></script>
-  <script src="js/app.js?v=402"></script>
+  <script src="js/app.js?v=403"></script>
 
   <!-- P1-4: nút về đầu trang (hiện khi cuộn quá 300px) -->
   <div x-data="{ showTop: false }" x-init="window.addEventListener('scroll', () => { showTop = window.scrollY > 300; })">
