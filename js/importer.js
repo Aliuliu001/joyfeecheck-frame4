@@ -13,17 +13,39 @@ window.Importer = {
     });
   },
 
-  // Tìm index của cột dựa trên từ khóa header
+  // Tìm index cột theo nhãn chuẩn và các tên cũ được chấp nhận.
   findColumnIndex: function(headers, keywords) {
     const lowerKeywords = keywords.map(k => Utils.normalizeText(k));
     for (let i = 0; i < headers.length; i++) {
       if (!headers[i]) continue;
       const val = Utils.normalizeText(headers[i].toString());
-      if (lowerKeywords.some(k => val.includes(k))) {
-        return i;
-      }
+      if (lowerKeywords.some(k => val === k)) return i;
+    }
+    for (let i = 0; i < headers.length; i++) {
+      if (!headers[i]) continue;
+      const val = Utils.normalizeText(headers[i].toString());
+      if (lowerKeywords.some(k => val.includes(k))) return i;
     }
     return -1;
+  },
+
+  fieldColumn: function(headers, field) {
+    const aliases = window.ImportSchema?.aliases?.fields?.[field] || [];
+    return this.findColumnIndex(headers, aliases);
+  },
+
+  getMatrix: function(workbook, sheetName) {
+    return XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '', raw: false });
+  },
+
+  isFooterRow: function(row, mshs, fullName) {
+    const text = Utils.normalizeText(`${mshs || ''} ${fullName || ''}`);
+    return !mshs && /(tong cong|tong hp|giam doc|truong tuan ngoc|so tien bang chu)/.test(text);
+  },
+
+  getImportSummary: function(rows, amountField) {
+    const total = (rows || []).reduce((sum, row) => sum + (amountField ? (Number(row[amountField]) || 0) : 0), 0);
+    return { rows: (rows || []).length, total };
   },
 
   normalizeHeader: function(value) {
@@ -87,19 +109,14 @@ window.Importer = {
       
       // Tìm các cột
       const colMap = {
-        stt: this.findColumnIndex(headers, ['STT']),
-        teacher: this.findColumnIndex(headers, ['Teacher', 'Giáo viên', 'GV']),
-        shift: this.findColumnIndex(headers, ['Shift', 'Ca']),
-        className: this.findColumnIndex(headers, ['Class', 'Mã lớp', 'Lớp']),
-        fullName: this.findColumnIndex(headers, ['Full name', 'Họ tên', 'Tên']),
-        mshs: this.findColumnIndex(headers, ['MSHS', 'Mã học sinh', 'Mã HS']),
-        phone: this.findColumnIndex(headers, ['SDT', 'SĐT', 'Số điện thoại', 'SDT Liên Lạc']),
-        stkPH: this.findColumnIndex(headers, ['STK_PH', 'STK', 'Số tài khoản']),
-        tenTK: this.findColumnIndex(headers, ['Tên TK', 'TenTK', 'Tên tài khoản']),
-        hocPhi: this.findColumnIndex(headers, ['Học phí', 'Học Phí', 'HP']),
-        diaChi: this.findColumnIndex(headers, ['Địa chỉ', 'Address', 'Dia chi', 'DiaChi']),
-        ghiChu: this.findColumnIndex(headers, ['Ghi chú', 'GhiChu'])
+        stt: this.findColumnIndex(headers, ['STT']), teacher: this.fieldColumn(headers, 'teacher'),
+        shift: this.fieldColumn(headers, 'shift'), className: this.fieldColumn(headers, 'className'),
+        fullName: this.fieldColumn(headers, 'fullName'), mshs: this.fieldColumn(headers, 'mshs'),
+        phone: this.fieldColumn(headers, 'phone'), stkPH: this.fieldColumn(headers, 'stkPH'),
+        tenTK: this.fieldColumn(headers, 'tenTK'), hocPhi: this.fieldColumn(headers, 'hocPhi'),
+        diaChi: this.fieldColumn(headers, 'diaChi'), ghiChu: this.fieldColumn(headers, 'ghiChu')
       };
+      this.requireColumns(headers, { MSHS: colMap.mshs, 'Họ tên': colMap.fullName }, `Sheet ${selection.name}`);
 
       // Đọc data rows
       for (let i = headerRowIdx + 1; i < dataMatrix.length; i++) {
@@ -167,22 +184,20 @@ window.Importer = {
       const workbook = XLSX.read(data, { type: 'array' });
       const selection = this.selectUniqueSheet(
         workbook,
-        [['ngày gd', 'ngày giao dịch', 'ngaygd', 'date'], ['ghi có', 'credit'], ['mô tả', 'nội dung', 'diễn giải', 'mota', 'details']],
-        { missingMessage: 'Không tìm thấy sheet sao kê VietinBank có cột Ngày, Nội dung và Ghi có' }
+        [['ngày gd', 'ngày giao dịch', 'ngày hạch toán', 'ngaygd', 'accounting date', 'transaction date', 'date'], ['ghi có', 'có', 'credit'], ['mô tả', 'nội dung', 'diễn giải', 'mota', 'transaction description', 'details']],
+        { nameAliases: window.ImportSchema?.aliases?.sheets?.vtb || [], maxRows: 60, missingMessage: 'Không tìm thấy sheet sao kê VietinBank có cột Ngày, Nội dung và Có/Credit' }
       );
       const dataMatrix = selection.matrix;
       const headerRowIdx = selection.headerRowIdx;
       const headers = dataMatrix[headerRowIdx];
       const colMap = {
-        stt: this.findColumnIndex(headers, ['STT']),
-        ngayGD: this.findColumnIndex(headers, ['NgayGD', 'Ngày GD', 'Ngày giao dịch', 'Ngày', 'Date']),
-        moTa: this.findColumnIndex(headers, ['MoTa', 'Mô tả', 'Nội dung', 'Diễn giải', 'Details']),
-        debit: this.findColumnIndex(headers, ['Ghi nợ', 'Debit']),
-        credit: this.findColumnIndex(headers, ['Credit', 'Ghi có']),
-        balance: this.findColumnIndex(headers, ['Số dư', 'Balance']),
-        stkDoiUng: this.findColumnIndex(headers, ['STK_DoiUng', 'STK đối ứng', 'Số TK đối ứng', 'Số tài khoản đối ứng']),
-        tenTKDoiUng: this.findColumnIndex(headers, ['TenTK_DoiUng', 'Tên TK đối ứng', 'Tên tài khoản đối ứng', 'Tên đối ứng'])
+        stt: this.findColumnIndex(headers, ['STT', 'STT/No.']),
+        ngayGD: this.fieldColumn(headers, 'date'), moTa: this.fieldColumn(headers, 'description'),
+        debit: this.fieldColumn(headers, 'debit'), credit: this.fieldColumn(headers, 'credit'),
+        balance: this.fieldColumn(headers, 'balance'), maGD: this.fieldColumn(headers, 'transactionId'),
+        stkDoiUng: this.fieldColumn(headers, 'counterAccount'), tenTKDoiUng: this.fieldColumn(headers, 'counterName')
       };
+      this.requireColumns(headers, { Ngày: colMap.ngayGD, 'Nội dung': colMap.moTa, 'Có/Credit': colMap.credit }, `Sheet ${selection.name}`);
 
       const transactions = [];
       for (let i = headerRowIdx + 1; i < dataMatrix.length; i++) {
@@ -200,7 +215,7 @@ window.Importer = {
           debit: Utils.parseNumber(row[colMap.debit]),
           credit: credit,
           balance: colMap.balance >= 0 ? Utils.parseNumber(row[colMap.balance]) : 0,
-          maGD: '', // Tùy form
+          maGD: colMap.maGD >= 0 ? (row[colMap.maGD] || '').toString().trim() : '',
           stkDoiUng: colMap.stkDoiUng >= 0 ? Utils.normalizeSTK(row[colMap.stkDoiUng]) : '',
           tenTKDoiUng: colMap.tenTKDoiUng >= 0 ? (row[colMap.tenTKDoiUng] || '').toString().trim() : '',
           matchedMSHS: null,
@@ -354,6 +369,7 @@ window.Importer = {
         for (let i = headerRowIdx + 1; i < dataMatrix.length; i++) {
           const row = dataMatrix[i];
           if (!row || row.length === 0 || (!row[colMap.mshs] && !row[colMap.fullName])) continue;
+          if (this.isFooterRow(row, row[colMap.mshs], row[colMap.fullName])) continue;
           students.push({
             mshs: (row[colMap.mshs] || '').toString().trim().toUpperCase(),
             fullName: colMap.fullName >= 0 ? (row[colMap.fullName] || '').toString().trim() : '',
@@ -369,8 +385,8 @@ window.Importer = {
       };
 
       const byName = (aliases) => candidates.filter(c => aliases.some(alias => Utils.normalizeText(c.name).replace(/[\s_-]+/g, '').includes(Utils.normalizeText(alias).replace(/[\s_-]+/g, ''))));
-      const thucTe = byName(['ds_thuc_te', 'thực tế', 'thuc te']);
-      const ghiHD = byName(['ds_ghi_hd', 'ghi hd', 'viết hđ', 'viet hd', 'danh sach viet']);
+      const thucTe = byName(window.ImportSchema?.aliases?.sheets?.previousActual || ['ds_thuc_te', 'thực tế', 'thuc te']);
+      const ghiHD = byName(window.ImportSchema?.aliases?.sheets?.previousInvoice || ['ds_ghi_hd', 'ghi hd', 'viết hđ', 'viet hd', 'danh sach viet']);
       if (thucTe.length > 1 || ghiHD.length > 1) throw new Error('Có nhiều sheet Kế toán cùng vai trò. Hãy đổi tên rõ DS_THUC_TE và DS_GHI_HD rồi nhập lại.');
       if (!thucTe.length || !ghiHD.length) {
         throw new Error('File Kế toán cần đủ 2 sheet tên DS_THUC_TE và DS_GHI_HD (không đoán theo thứ tự để tránh nhầm dữ liệu).');

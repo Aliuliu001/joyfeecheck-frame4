@@ -165,7 +165,8 @@ window.Exporter = {
       ? monthYear.split('-').reverse().join('.')
       : (monthYear || '');
 
-    const headers = ['STT', 'Mã học sinh', 'Mã lớp', 'Họ tên học sinh', 'Giáo viên', 'Học phí', 'Địa chỉ', 'Ghi chú'];
+    // Chuẩn cột kế toán: đúng thứ tự file kế toán đã đối chiếu.
+    const headers = (window.ImportSchema?.headers?.accounting || ['STT', 'MSHS', 'Lớp', 'Họ tên', 'Giáo viên', 'Học phí', 'Địa chỉ', 'Ghi chú']);
 
     // 1. Sheet "Thực Tế"
     const aoaThucTe = [ headers ];
@@ -179,7 +180,7 @@ window.Exporter = {
     aoaThucTe.push(['', '', '', '', '', totalThucTe, '', '']);
     const wsThucTe = XLSX.utils.aoa_to_sheet(aoaThucTe);
     this.autoFitColumns(wsThucTe, thucTeRows, headers);
-    XLSX.utils.book_append_sheet(wb, wsThucTe, 'Thực Tế');
+    XLSX.utils.book_append_sheet(wb, wsThucTe, window.ImportSchema?.sheets?.previousActual || 'DS_THUC_TE');
 
     // 2. Sheet "Danh sách viết HĐ"
     const aoaGhiHD = [
@@ -207,7 +208,7 @@ window.Exporter = {
 
     const wsGhiHD = XLSX.utils.aoa_to_sheet(aoaGhiHD);
     this.autoFitColumns(wsGhiHD, ghiHDRows, headers);
-    XLSX.utils.book_append_sheet(wb, wsGhiHD, 'Danh sách viết HĐ');
+    XLSX.utils.book_append_sheet(wb, wsGhiHD, window.ImportSchema?.sheets?.previousInvoice || 'DS_GHI_HD');
 
     // 3. Sheet "Thay đổi DS HĐ" — Tăng/Giảm + CK sai tiền
     const tangMoi = (invoiceChanges && invoiceChanges.tangMoi) || [];
@@ -650,18 +651,18 @@ window.Exporter = {
     };
 
     // 1. Ds_HocSinh
-    const hsAoA = [['STT', 'Teacher', 'Shift', 'Class', 'Full name', 'MSHS', 'SDT', 'STK_PH', 'Tên TK', 'Học Phí', 'Địa chỉ', 'Ghi chú']];
+    const hsAoA = [[...(window.ImportSchema?.headers?.students || ['STT', 'Teacher', 'Shift', 'Class', 'Full name', 'MSHS', 'Address', 'STK_PH', 'Tên TK', 'Ghi chú', 'Học phí'])]];
     (students || []).forEach((s, idx) => {
-      hsAoA.push([idx + 1, s.teacher, s.shift, s.className, s.fullName, s.mshs, s.phone, s.stkPH, s.tenTK, s.hocPhi, s.diaChi, s.ghiChuGiaDinh]);
+      hsAoA.push([idx + 1, s.teacher, s.shift, s.className, s.fullName, s.mshs, s.diaChi, s.stkPH, s.tenTK, s.ghiChuGiaDinh, s.hocPhi]);
     });
-    XLSX.utils.book_append_sheet(wb, createSheet(hsAoA, hsAoA[0]), 'Ds_HocSinh');
+    XLSX.utils.book_append_sheet(wb, createSheet(hsAoA, hsAoA[0]), window.ImportSchema?.sheets?.students || 'DS_HOC_SINH');
 
-    // 2. SAOKE_RAW (VietinBank)
-    const vtbAoA = [['STT', 'NgàyGD', 'Nội dung', 'Ghi nợ', 'Ghi có', 'Số dư', 'STK đối ứng', 'Tên TK đối ứng']];
+    // 2. VietinBank: giữ mã giao dịch và tài khoản đối ứng để có thể đọc lại.
+    const vtbAoA = [[...(window.ImportSchema?.headers?.vtb || ['STT/No.', 'Ngày hạch toán/Accounting date', 'Mô tả giao dịch/ Transaction description', 'Nợ/ Debit', 'Có / Credit', 'Số dư TK/ Account Balance', 'Số giao dịch/ Transaction number', 'Số tài khoản đối ứng/ Corresponsive account', 'Tên tài khoản đối ứng/ Corresponsive name'])]];
     (vtb || []).forEach((t, idx) => {
-      vtbAoA.push([t.stt || idx + 1, t.date, t.description, t.debit, t.credit, t.balance, t.stkDoiUng, t.tenTKDoiUng]);
+      vtbAoA.push([t.stt || idx + 1, t.date, t.description, t.debit, t.credit, t.balance, t.maGD || '', t.stkDoiUng, t.tenTKDoiUng, t.date]);
     });
-    XLSX.utils.book_append_sheet(wb, createSheet(vtbAoA, vtbAoA[0]), 'SAOKE_RAW');
+    XLSX.utils.book_append_sheet(wb, createSheet(vtbAoA, vtbAoA[0]), window.ImportSchema?.sheets?.vtb || 'SAO_KE_VIETINBANK');
 
     // 3. SAO_KE_CA_NHAN (TPBank)
     const tpbAoA = [['Transaction Date', 'Reference Number', 'Explanation', 'Debit', 'Credit', 'Balance']];

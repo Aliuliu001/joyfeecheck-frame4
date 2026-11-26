@@ -114,7 +114,8 @@
                  accept=".xlsx, .xls, .csv" 
                  @change="handleFileImport($event, 'dsHocSinh')"
                  hidden>
-          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Cần MSHS + Họ tên. Có sheet bìa/đổi thứ tự vẫn được; nếu nhiều sheet giống nhau app sẽ dừng báo rõ, không tự đoán.</p>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Sheet chuẩn: <b>DS_HOC_SINH</b> · Bắt buộc: MSHS, Họ tên · Dán từ dòng 2. Có sheet bìa/đổi thứ tự vẫn được.</p>
+          <a class="btn btn-xs btn-outline" href="forms_mau_import/01_DS_HOC_SINH.xlsx?v=404" download @click.stop>📥 Tải mẫu DS học sinh</a>
         </div>
         
         <!-- VietinBank -->
@@ -135,6 +136,8 @@
                  accept=".xlsx, .xls, .csv" 
                  @change="handleFileImport($event, 'vietinBank')"
                  hidden>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Nhập trực tiếp file tải từ ngân hàng. Sheet mẫu: <b>SAO_KE_VIETINBANK</b> · tiêu đề ở dòng 2.</p>
+          <a class="btn btn-xs btn-outline" href="forms_mau_import/05_SAO_KE_VIETINBANK.xlsx?v=404" download @click.stop>📥 Tải mẫu VietinBank</a>
         </div>
         
         <!-- TPBank -->
@@ -155,6 +158,8 @@
                  accept=".xlsx, .xls, .csv" 
                  @change="handleFileImport($event, 'tpBank')"
                  hidden>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Sheet chuẩn: <b>SAO_KE_TPBANK</b> · tiêu đề ở dòng 2.</p>
+          <a class="btn btn-xs btn-outline" href="forms_mau_import/06_SAO_KE_TPBANK.xlsx?v=404" download @click.stop>📥 Tải mẫu TPBank</a>
         </div>
         
         <!-- Tiền mặt -->
@@ -175,6 +180,8 @@
                  accept=".xlsx, .xls, .csv" 
                  @change="handleFileImport($event, 'tienMat')"
                  hidden>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Sheet chuẩn: <b>TIEN_MAT</b> · Bắt buộc: MSHS, Số tiền · dán từ dòng 2.</p>
+          <a class="btn btn-xs btn-outline" href="forms_mau_import/02_TIEN_MAT.xlsx?v=404" download @click.stop>📥 Tải mẫu tiền mặt</a>
         </div>
 
         <!-- File KT tháng trước -->
@@ -196,7 +203,8 @@
                  accept=".xlsx, .xls, .csv" 
                  @change="handleFileImport($event, 'prevInvoice')"
                  hidden>
-          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Cần 2 sheet: <b>DS_THUC_TE</b> và <b>DS_GHI_HD</b>. App không đoán theo thứ tự để tránh nhập nhầm.</p>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Sheet chuẩn: <b>DS_THUC_TE</b> + <b>DS_GHI_HD</b> · tiêu đề ở dòng 2 hoặc sau phần thông tin công ty.</p>
+          <a class="btn btn-xs btn-outline" href="forms_mau_import/03_KE_TOAN_THANG_TRUOC.xlsx?v=404" download @click.stop>📥 Tải mẫu kế toán tháng trước</a>
         </div>
 
         <!-- Nợ chốt tháng trước: import file Excel form ChotNo (do app xuất cuối tháng trước) -->
@@ -218,7 +226,8 @@
                  accept=".xlsx, .xls, .csv"
                  @change="handleFileImport($event, 'priorDebt')"
                  hidden>
-          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Thả đúng file <b>ChotNo_YYYYMM.xlsx</b> do app xuất cuối tháng trước. Tháng 10 này chưa có file thì dán tay 1 lần ở dưới.</p>
+          <p class="help-text" style="font-size: 0.7rem; margin-top: 8px; color: var(--text-secondary);">Sheet chuẩn: <b>CHOT_NO</b> · Bắt buộc: MSHS, Số còn thiếu · dán từ dòng 2.</p>
+          <a class="btn btn-xs btn-outline" href="forms_mau_import/04_NO_CHOT_THANG_TRUOC.xlsx?v=404" download @click.stop>📥 Tải mẫu nợ chốt tháng trước</a>
           <div x-show="priorDebtRows && priorDebtRows.length > 0" @click.stop style="margin-top: 8px; border: 1px solid var(--border-color); border-radius: 8px; padding: 6px;">
             <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px; border-bottom: 1px solid var(--border-color);">
               <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; margin: 0;">
@@ -2099,7 +2108,8 @@
   <script src="js/datamodel.js?v=403"></script>
   <script src="js/utils.js?v=401"></script>
   <script src="js/storage.js?v=403"></script>
-  <script src="js/importer.js?v=403"></script>
+  <script src="js/import-schema.js?v=404"></script>
+  <script src="js/importer.js?v=404"></script>
   <script src="js/matcher.js?v=401"></script>
   <script src="js/reporter.js?v=402"></script>
   <script src="js/accounting.js?v=401"></script>
