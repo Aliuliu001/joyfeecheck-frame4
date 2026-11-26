@@ -3,7 +3,9 @@ const fs = require('fs');
 const schema = {
   '01_DS_HOC_SINH.xlsx': [['DS_HOC_SINH', [
     ['STT','Teacher','Shift','Class','Full name','MSHS','Address','STK_PH','Tên TK','Ghi chú','Học phí'],
-    [1,'Cô Mẫu','Ca tối','Lớp Mẫu','Học sinh Ví dụ','HV000','Địa chỉ ví dụ','0123456789','PH Ví dụ','XÓA DÒNG VÍ DỤ TRƯỚC KHI DÁN',800000]
+    [1,'Cô Mẫu','Ca tối','Lớp Mẫu A','Học sinh Ví dụ','HV000','Địa chỉ ví dụ','0123456789','PH Ví dụ','XÓA DÒNG VÍ DỤ TRƯỚC KHI DÁN',800000],
+    [2,'Cô Mẫu','Ca tối','Lớp Mẫu B','Học sinh Ví dụ','HV000','Địa chỉ ví dụ','0012345678','PH Ví dụ','Cùng MSHS, học thêm lớp khác',0],
+    [3,'Cô Mẫu','Ca chiều','Lớp Mẫu C','Học sinh Chốt Sau','HV001','Địa chỉ ví dụ','0009876543','PH Ví dụ','Ví dụ HP chưa chốt','Chốt sau']
   ]]],
   '02_TIEN_MAT.xlsx': [['TIEN_MAT', [
     ['NGÀY ĐÓNG','LỚP','HỌ TÊN','SỐ TIỀN','MSHS','GHI CHÚ'],

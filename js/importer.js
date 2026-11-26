@@ -34,8 +34,47 @@ window.Importer = {
     return this.findColumnIndex(headers, aliases);
   },
 
+  fieldColumnCandidates: function(headers, field) {
+    const aliases = (window.ImportSchema?.aliases?.fields?.[field] || []).map(alias => this.normalizeHeader(alias));
+    const exact = headers.map((header, index) => ({ header, index, value: this.normalizeHeader(header) }))
+      .filter(item => item.value && aliases.includes(item.value));
+    return exact.length ? exact.map(item => item.index) : headers.map((header, index) => ({ header, index, value: this.normalizeHeader(header) }))
+      .filter(item => item.value && aliases.some(alias => item.value.includes(alias)))
+      .map(item => item.index);
+  },
+
+  resolveOptionalColumn: function(headers, matrix, headerRowIdx, field, label) {
+    const matches = this.fieldColumnCandidates(headers, field);
+    if (matches.length <= 1) return matches[0] ?? -1;
+    const populated = matches.filter(index => matrix.slice(headerRowIdx + 1).some(row => String((row || [])[index] ?? '').trim() !== ''));
+    if (populated.length === 1) return populated[0];
+    if (populated.length > 1) {
+      throw new Error(`Sheet ${label} có nhiều cột ${field} cùng có dữ liệu. Hãy chỉ giữ một cột hoặc đổi tên rõ cột cần dùng.`);
+    }
+    return matches[0];
+  },
+
   getMatrix: function(workbook, sheetName) {
-    return XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '', raw: false });
+    return XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '', raw: true });
+  },
+
+  getSheetVisibility: function(workbook, name) {
+    const sheet = (workbook.Workbook && workbook.Workbook.Sheets || []).find(item => item.name === name);
+    return sheet && sheet.Hidden ? 'hidden' : 'visible';
+  },
+
+  getStkWarnings: function(dataMatrix, headerRowIdx, stkColumn) {
+    if (stkColumn < 0) return [];
+    const warnings = [];
+    for (let i = headerRowIdx + 1; i < dataMatrix.length; i++) {
+      const raw = (dataMatrix[i] || [])[stkColumn];
+      if (raw === null || raw === undefined || String(raw).trim() === '') continue;
+      const text = String(raw).trim();
+      if (typeof raw === 'number' && (!Number.isSafeInteger(raw) || text.length >= 15)) warnings.push(`Dòng ${i + 1}: STK đang là số dài, cần kiểm tra lại số 0 đầu.`);
+      else if (/e[+-]?\d+$/i.test(text)) warnings.push(`Dòng ${i + 1}: STK đang ở dạng E+, không tự đổi để tránh sai số.`);
+      else if (!/^\d+$/.test(text.replace(/[\s.\-]/g, ''))) warnings.push(`Dòng ${i + 1}: STK có ký tự ngoài chữ số, app giữ nguyên để anh kiểm tra.`);
+    }
+    return warnings;
   },
 
   isFooterRow: function(row, mshs, fullName) {
@@ -65,12 +104,15 @@ window.Importer = {
 
   findSheetCandidates: function(workbook, requiredGroups, options = {}) {
     return workbook.SheetNames.map(name => {
-      const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '' });
+      const matrix = this.getMatrix(workbook, name);
       const header = this.findHeaderRow(matrix, requiredGroups, options.maxRows || 40);
       const normalizedName = Utils.normalizeText(name).replace(/[\s_-]+/g, '');
       const aliases = options.nameAliases || [];
       const nameScore = aliases.some(alias => normalizedName.includes(Utils.normalizeText(alias).replace(/[\s_-]+/g, ''))) ? 100 : 0;
-      return { name, matrix, headerRowIdx: header.index, headerScore: header.score, score: nameScore + header.score, valid: header.score >= requiredGroups.length };
+      return {
+        name, matrix, visibility: this.getSheetVisibility(workbook, name), headerRowIdx: header.index,
+        headerScore: header.score, score: nameScore + header.score, valid: header.score >= requiredGroups.length
+      };
     }).filter(item => item.valid);
   },
 
@@ -113,10 +155,12 @@ window.Importer = {
         shift: this.fieldColumn(headers, 'shift'), className: this.fieldColumn(headers, 'className'),
         fullName: this.fieldColumn(headers, 'fullName'), mshs: this.fieldColumn(headers, 'mshs'),
         phone: this.fieldColumn(headers, 'phone'), stkPH: this.fieldColumn(headers, 'stkPH'),
-        tenTK: this.fieldColumn(headers, 'tenTK'), hocPhi: this.fieldColumn(headers, 'hocPhi'),
+        tenTK: this.fieldColumn(headers, 'tenTK'),
+        hocPhi: this.resolveOptionalColumn(headers, dataMatrix, headerRowIdx, 'hocPhi', selection.name),
         diaChi: this.fieldColumn(headers, 'diaChi'), ghiChu: this.fieldColumn(headers, 'ghiChu')
       };
       this.requireColumns(headers, { MSHS: colMap.mshs, 'Họ tên': colMap.fullName }, `Sheet ${selection.name}`);
+      const stkWarnings = this.getStkWarnings(dataMatrix, headerRowIdx, colMap.stkPH);
 
       // Đọc data rows
       for (let i = headerRowIdx + 1; i < dataMatrix.length; i++) {
@@ -168,8 +212,22 @@ window.Importer = {
         students.push(student);
       }
 
+      const uniqueMSHS = new Set(students.map(student => student.mshs).filter(Boolean)).size;
+      const missingLabels = students.filter(student => !student.fullName || !student.className).length;
       console.log(`Đã parse ${students.length} học sinh`);
-      return { students, rawHeaders: headers };
+      return {
+        students,
+        rawHeaders: headers,
+        importMeta: {
+          sheetName: selection.name,
+          headerRow: headerRowIdx + 1,
+          sheetVisibility: selection.visibility,
+          rowCount: students.length,
+          uniqueMSHS,
+          missingLabels,
+          stkWarnings
+        }
+      };
     } catch (e) {
       console.error(e);
       if (window.Utils) window.Utils.showToast('Lỗi khi đọc file học sinh: ' + e.message, 'error');

@@ -75,6 +75,18 @@
 
 ---
 
+## ✅ ĐÃ FIX 26/11/2026 — File DS_HOC_SINH nhiều sheet và nhãn tên/lớp
+
+| # | Vấn đề | Cách sửa | Kiểm tra |
+|---|---|---|---|
+| B27 | File tải Google Sheets có 6 sheet, tiêu đề thật ở dòng 3; nguy cơ đọc nhầm sheet đầu hoặc mất dòng HS học nhiều lớp | Chọn theo tên sheet + cột bắt buộc, quét dòng tiêu đề; giữ từng dòng lớp, không gộp MSHS khi import | File thật: `Ds_HocSinh`, dòng 3, 196 dòng / 181 MSHS |
+| B28 | `GhiChu_GiaDinh` không nằm trong alias chuẩn nên có thể rơi ghi chú | Bổ sung alias `GhiChu_GiaDinh` và các dạng có khoảng trắng/dấu gạch dưới | Unit + nhập file thật PASS |
+| B29 | Cột Học phí trùng nghĩa có thể bị lấy cột đầu im lặng | Nếu chỉ một cột có dữ liệu thì dùng cột đó; nếu nhiều cột cùng có dữ liệu thì chặn và báo rõ | Unit PASS |
+| B30 | STK phụ và từ khóa TPBank tra nhãn từ DS ghi HĐ tháng trước nên HS chỉ có trong DS tháng này có thể thiếu tên/lớp | Dùng chung `resolveStudent`: ưu tiên DS tháng đang làm, danh bạ chỉ bù chỗ trống | Unit PASS; không kéo lớp cũ vào tháng mới |
+| B31 | STK lẫn ký tự/số dài có thể bị sửa thầm | Giữ nguyên giá trị đọc được và cảnh báo riêng; không tự thêm số 0 hoặc đổi E+ | File thật báo 1 STK cần kiểm tra |
+
+---
+
 ## ⚠️ KNOWN ISSUES (CHƯA FIX)
 
 | # | File | Mô tả | Mức độ | Ghi chú |

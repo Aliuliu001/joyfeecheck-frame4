@@ -560,8 +560,9 @@ window.Storage = {
     const code = this.normalizeMSHS(mshs);
     const current = (currentStudents || []).filter(s => this.normalizeMSHS(s.mshs) === code);
     const directory = this.loadStudentDirectory()[code];
-    const classes = new Set(current.map(s => s.className).filter(Boolean));
-    (directory && directory.classes || []).forEach(c => classes.add(c));
+    // Có DS tháng này thì chỉ hiện lớp của tháng này; danh bạ cũ chỉ bổ sung trường đang thiếu.
+    const currentClasses = new Set(current.map(s => s.className).filter(Boolean));
+    const classes = current.length ? currentClasses : new Set((directory && directory.classes) || []);
     const fullName = (current.find(s => s.fullName) || {}).fullName || (directory && directory.fullName) || '';
     return { mshs: code, fullName, className: [...classes].join(', '), found: Boolean(fullName || classes.size), source: current.length ? 'danh sách tháng này' : (directory ? 'danh bạ đã lưu' : '') };
   },

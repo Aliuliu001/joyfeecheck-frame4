@@ -9,6 +9,9 @@ Phiên bản: 2026-11-26
 - Các sheet chuẩn dưới đây giúp dễ nhận biết; tên sheet cũ vẫn được nhận.
 - Cột riêng của webapp chỉ đặt sau các cột kế toán.
 - File nhập lỗi hoặc thiếu cột sẽ báo lỗi và giữ nguyên dữ liệu đang làm.
+- Màu nền, wrap chữ, độ rộng cột và chiều cao dòng không ảnh hưởng import. App đọc giá trị ô, không đọc phần hiển thị.
+- Không cần xóa sheet phụ/ẩn. Khi nhập DS học sinh, app nhận đúng sheet có tên và cột phù hợp; nếu nhiều sheet ngang nhau thì dừng báo rõ, không đoán theo sheet đầu.
+- Nếu có hai cột cùng nghĩa **Học phí** mà cả hai đều có dữ liệu, app dừng để tránh lấy nhầm. Nếu chỉ một cột có dữ liệu thì dùng cột đó.
 - Mẫu công khai chỉ dùng dữ liệu ví dụ, không có học sinh hay giao dịch thật.
 
 ## DS học sinh

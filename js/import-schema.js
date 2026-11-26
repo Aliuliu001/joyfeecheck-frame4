@@ -24,7 +24,7 @@ window.ImportSchema = {
       mshs: ['mshs', 'ma hoc sinh', 'ma hs'], fullName: ['ho ten', 'full name', 'ho va ten', 'ten hoc sinh'],
       className: ['lop', 'class', 'ma lop'], teacher: ['teacher', 'giao vien', 'gv'], shift: ['shift', 'ca'],
       phone: ['sdt', 'so dien thoai', 'sdt lien lac'], stkPH: ['stk ph', 'stk_ph', 'stk', 'so tai khoan'],
-      tenTK: ['ten tk', 'tentk', 'ten tai khoan'], hocPhi: ['hoc phi', 'hp', 'tong hp'], diaChi: ['dia chi', 'address'], ghiChu: ['ghi chu', 'ghichu', 'note'],
+      tenTK: ['ten tk', 'tentk', 'ten tai khoan'], hocPhi: ['hoc phi', 'hp', 'tong hp'], diaChi: ['dia chi', 'address'], ghiChu: ['ghi chu', 'ghichu', 'ghi chu gia dinh', 'ghichu gia dinh', 'ghi_chu_gia_dinh', 'note'],
       date: ['ngay dong', 'ngay gd', 'ngay giao dich', 'ngay hach toan', 'accounting date', 'transaction date', 'date'],
       amount: ['so tien', 'so tien dong'], credit: ['ghi co', 'credit'], debit: ['ghi no', 'debit'], balance: ['so du', 'balance', 'so du tk', 'account balance'],
       description: ['mo ta', 'noi dung', 'dien giai', 'transaction description', 'explanation', 'details'],

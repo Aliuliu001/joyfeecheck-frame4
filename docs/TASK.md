@@ -10,6 +10,7 @@
 - **ĐÃ HOÀN THÀNH**: Toàn bộ nghiệp vụ tính toán, UI/UX, logic import/export, chia tiền nhóm gia đình, xử lý ngoại lệ (Phase 0 đến Phase 5A).
 - **ĐANG DANG DỞ**: Đang tạm ngưng ở **Phase 5B: Test tổng thể**. (Chưa test thử nghiệm với dữ liệu thật trên trình duyệt).
 - **CẦN LÀM TIẾP THEO**: User mở `index.html` → Nạp 4 file từ thư mục `test_data/` → Chạy đối soát → Cung cấp phản hồi.
+- **26/11/2026 — Đã kiểm tra file thật DS_HOC_SINH nhiều sheet**: app nhận `Ds_HocSinh` ở dòng tiêu đề 3, đủ 196 dòng / 181 MSHS, không thiếu tên-lớp; STK giữ nguyên và báo 1 ô cần kiểm tra. Đã sửa luồng nhãn STK phụ/từ khóa dùng DS tháng hiện tại trước.
 
 ---
 

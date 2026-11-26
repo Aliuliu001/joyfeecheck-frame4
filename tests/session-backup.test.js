@@ -22,6 +22,14 @@ test('directory resolves names and combines classes without making a current stu
   assert.match(found.className, /Tiramisu/);
 });
 
+test('current-month classes do not inherit old classes from the directory', () => {
+  const s = storage();
+  s.saveStudentDirectory([{ mshs: 'HV001', fullName: 'An', className: 'Pineapple' }, { mshs: 'HV001', fullName: 'An', className: 'Tiramisu' }], '2026-10');
+  const found = s.resolveStudent('HV001', [{ mshs: 'HV001', fullName: 'An', className: 'Cashew' }]);
+  assert.equal(found.className, 'Cashew');
+  assert.equal(found.fullName, 'An');
+});
+
 test('month sessions remain separate and preserve row counts', () => {
   const s = storage();
   s.saveMonthSession('2026-10', { students: [{ mshs: 'HV1' }], vtbTransactions: [{ credit: 800000}], tpbTransactions: [], cashPayments: [], prevInvoiceStudents: [], prevThucTeStudents: [], importStatus: {}, defaultFee: 800000, priorDebtRows: [] });

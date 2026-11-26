@@ -350,26 +350,16 @@ function appComponent() {
       // Mới gán nhất lên đầu → dễ phát hiện gán nhầm mấy ngày gần đây
       const byDate = (a, b) => new Date(b.addedDate || 0) - new Date(a.addedDate || 0);
       
-      const studentsMap = new Map();
-      (this.$store.appState.prevInvoiceStudents || []).forEach(s => {
-        const mshs = typeof s === 'string' ? s : s.mshs;
-        if (mshs) studentsMap.set(mshs, typeof s === 'string' ? { mshs, fullName: mshs } : s);
-      });
+      const resolveCurrentStudent = (mshs) => window.Storage.resolveStudent(mshs, this.$store.appState.students || []);
       
       this.stkPhuData = [...stk].sort(byDate).map(item => {
-        const student = studentsMap.get(item.mshs);
-        if (student) {
-          return { ...item, tenHS: student.fullName, className: student.className };
-        }
-        return item;
+        const student = resolveCurrentStudent(item.mshs);
+        return student.found ? { ...item, tenHS: student.fullName || item.tenHS || '', className: student.className || item.className || '' } : item;
       });
       
       this.keywordData = [...kw].sort(byDate).map(item => {
-        const student = studentsMap.get(item.mshs);
-        if (student) {
-          return { ...item, tenHS: student.fullName, className: student.className };
-        }
-        return item;
+        const student = resolveCurrentStudent(item.mshs);
+        return student.found ? { ...item, tenHS: student.fullName || item.tenHS || '', className: student.className || item.className || '' } : item;
       });
       this.familyGroups = window.Storage.loadFamilyGroups() || [];
       this.packageData = window.Storage.loadPackages() || [];
@@ -457,12 +447,14 @@ function appComponent() {
       this.showLoading = true;
       try {
         let result;
+        let importMeta = null;
         const state = this.$store.appState;
         
         switch(type) {
           case 'dsHocSinh': {
             const parsed = await window.Importer.parseGoogleSheets(file);
             result = parsed.students || parsed;
+            importMeta = parsed.importMeta || null;
             if (!Array.isArray(result) || !result.length) throw new Error('Danh sách học sinh không có dòng hợp lệ');
             state.students = result;
             break;
@@ -530,7 +522,13 @@ function appComponent() {
         this.loadSettingsUI();
         state.importStatus[type] = true;
         this.saveCurrentMonthSession();
-        this.showToast(`✅ Import ${file.name} thành công: ${result.length} dòng`, 'success');
+        const summary = type === 'dsHocSinh' && importMeta
+          ? `: sheet ${importMeta.sheetName}, dòng tiêu đề ${importMeta.headerRow}, ${importMeta.rowCount} dòng / ${importMeta.uniqueMSHS} MSHS, thiếu tên-lớp ${importMeta.missingLabels}`
+          : `: ${result.length} dòng`;
+        this.showToast(`✅ Import ${file.name} thành công${summary}`, 'success');
+        if (type === 'dsHocSinh' && importMeta && importMeta.stkWarnings && importMeta.stkWarnings.length) {
+          this.showToast(`⚠️ Có ${importMeta.stkWarnings.length} STK cần kiểm tra; app không tự sửa. ${importMeta.stkWarnings.slice(0, 2).join(' ')}`, 'warning');
+        }
         
       } catch (err) {
         this.showToast(`❌ Lỗi import file: ${err.message}`, 'error');
@@ -998,10 +996,11 @@ function appComponent() {
       ).slice(0, 50);
     },
 
-    // Tra cứu tên + lớp từ MSHS (dùng cho bảng Gói, gợi ý gán — phân biệt HS trùng tên bằng Lớp)
+    // Tra cứu tên + lớp từ một nguồn chung: DS tháng này trước, danh bạ chỉ bù chỗ thiếu.
     studentByMshs(mshs) {
       const students = (this.$store && this.$store.appState && this.$store.appState.students) || [];
-      return students.find(s => s.mshs === mshs) || null;
+      const result = window.Storage.resolveStudent(mshs, students);
+      return result.found ? result : null;
     },
 
     studentClass(mshs) {
@@ -1643,8 +1642,8 @@ function appComponent() {
 
     lookupStudentInfo(mshs) {
       if (!mshs) return { fullName: '', className: '' };
-      const s = (this.$store.appState.students || []).find(x => x.mshs === mshs) || (this.$store.appState.prevInvoiceStudents || []).find(x => x.mshs === mshs);
-      return s ? { fullName: s.fullName, className: s.className } : { fullName: '', className: '' };
+      const s = window.Storage.resolveStudent(mshs, this.$store.appState.students || []);
+      return s.found ? { fullName: s.fullName, className: s.className } : { fullName: '', className: '' };
     },
     
     getTab7UniqueTags() {
