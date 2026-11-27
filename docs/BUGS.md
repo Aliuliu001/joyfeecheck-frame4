@@ -87,6 +87,21 @@
 
 ---
 
+## ✅ ĐÃ FIX 27/11/2026 — Chia CK STK chung, gói gia hạn và chi tiết thanh toán
+
+| # | Vấn đề | Cách sửa | Kiểm tra |
+|---|---|---|---|
+| B32 | Một STK VTB dùng chung bị chia theo học phí dù nội dung ghi rõ đúng một bé | Với STK chung, app xét MSHS nguyên mã hoặc họ tên đầy đủ thuộc đúng nhóm STK trước khi chia. Nếu chỉ ra đúng 1 bé thì gán trọn giao dịch; không có chỉ định vẫn chia như cũ; mã/tên mâu thuẫn thì chuyển sang cần kiểm tra. | 6 case Node PASS, gồm mã `HV12`/`HV128`, tên trùng và nội dung mâu thuẫn |
+| B33 | Sửa gán VTB trước đây biến thành STK phụ vĩnh viễn | Sửa theo từng giao dịch + tháng, dùng mã nhận diện đầy đủ (mã GD/thời điểm/STK/số tiền/nội dung); chạy lại, nhập lại và backup vẫn giữ đúng giao dịch đó. Khoản gán tay không bị chia lại trong nhóm gia đình. | Node PASS |
+| B34 | Popup chi tiết cắt nội dung CK ở 80 ký tự, có thể hiển thị HTML từ sao kê | Hiện đầy đủ, xuống dòng và cuộn dọc; STK, tên chủ TK, nội dung đều được escape trước khi hiển thị. Có nút sửa người nhận ngay trên từng dòng VTB. | 3 case Node PASS |
+| B35 | Gói cũ có thể làm gói gia hạn mới bị báo hết hạn do thứ tự lưu | Xét toàn bộ gói của bé; gói đang bao tháng đối soát ưu tiên hơn lịch sử cũ. Mốc kết thúc luôn tính từ tháng bắt đầu + số tháng, bao gồm cả tháng cuối. Gói chồng nhau được cờ xung đột, không miễn đôi. | 5 case Node PASS, gồm qua năm và dữ liệu không hợp lệ |
+| B36 | Chỉ nhắc gói vừa hết, không có danh sách dọn gói cũ an toàn | Danh sách gói hết hạn có tên/bé/lớp/kỳ hạn/trạng thái gia hạn. Chọn từng gói hoặc chọn tất cả rồi xác nhận **Ẩn**; chỉ ẩn danh sách hiện dùng, không xóa lịch sử hay ảnh hưởng tháng cũ. | 6 case Node PASS |
+| B37 | Tổng hợp, Kế toán và Excel có nguy cơ không cùng số phân bổ VTB | Bài kiểm tra luồng thật Matcher → Tổng hợp → Kế toán → Excel xác nhận VTB được chỉ định, tiền mặt, tổng thu và file Excel trùng nhau; chạy lại không nhân giao dịch, tháng/phiên cũ không đổi. | 1 case xuyên luồng Node PASS |
+
+> Bộ kiểm tra mới: **23/23 PASS**. Bộ kiểm tra toàn dự án còn 3 lỗi `ENOENT` do 3 file Excel nguồn bên ngoài đã không còn ở thư mục cache, không do các thay đổi trên.
+
+---
+
 ## ⚠️ KNOWN ISSUES (CHƯA FIX)
 
 | # | File | Mô tả | Mức độ | Ghi chú |

@@ -75,13 +75,25 @@ window.Storage = {
   saveKeywords: function(data) {
     return this._set(APP_CONFIG.STORAGE_KEYS.KEYWORDS, data);
   },
-      loadManualMatches: function() {
-      return this._get('joy_manual_matches') || {};
-    },
-    saveManualMatches: function(matches) {
-      this._set('joy_manual_matches', matches);
-    },
-    addManualMatch: function(txId, mshs) {
+    vtbTransactionId: function(tx) {
+    return tx.transactionId || `vtb|${tx.maGD || tx.reference || tx.bankReference || ''}|${tx.date || ''}|${tx.debitAccount || tx.stkDoiUng || tx.account || ''}|${tx.credit || tx.amount || 0}|${tx.description || tx.explanation || ''}`;
+  },
+  loadManualMatches: function() {
+    return this._get('joy_manual_matches') || {};
+  },
+  saveManualMatches: function(matches) {
+    this._set('joy_manual_matches', matches);
+  },
+  addManualAllocation: function(tx, mshs, monthYear) {
+    const matches = this.loadManualMatches();
+    matches[this.vtbTransactionId(tx)] = { mshs: String(mshs || '').toUpperCase(), monthYear };
+    this.saveManualMatches(matches);
+  },
+  getManualAllocation: function(tx, monthYear) {
+    const allocation = this.loadManualMatches()[this.vtbTransactionId(tx)];
+    return allocation && allocation.monthYear === monthYear ? allocation : null;
+  },
+  addManualMatch: function(txId, mshs) {
       const matches = this.loadManualMatches();
       matches[txId] = mshs;
       this.saveManualMatches(matches);
@@ -199,75 +211,86 @@ window.Storage = {
   loadPackages: function() {
     return this._get(APP_CONFIG.STORAGE_KEYS.PACKAGES, []);
   },
+  _packageMonthIndex: function(value) {
+    const match = /^(\d{4})-(\d{2})$/.exec(String(value || ''));
+    if (!match) return null;
+    const year = Number(match[1]), month = Number(match[2]);
+    return month >= 1 && month <= 12 ? year * 12 + month : null;
+  },
+  _packageMonthString: function(index) {
+    const year = Math.floor((index - 1) / 12), month = ((index - 1) % 12) + 1;
+    return `${year}-${String(month).padStart(2, '0')}`;
+  },
+  _packagePeriod: function(pkg) {
+    const start = this._packageMonthIndex(pkg && pkg.startMonth);
+    const months = Number(pkg && pkg.months);
+    if (!start || !Number.isInteger(months) || months <= 0) return null;
+    return { start, end: start + months - 1, months };
+  },
   addPackage: function(pkg) {
+    const period = this._packagePeriod(pkg);
+    if (!period) return null;
     const list = this.loadPackages();
-    const newPkg = {
-      ...pkg,
-      packageId: 'PKG' + Date.now(),
-      addedDate: new Date().toISOString()
-    };
+    const newPkg = { ...pkg, months: period.months, endMonth: this._packageMonthString(period.end), packageId: 'PKG' + Date.now(), addedDate: new Date().toISOString() };
     list.push(newPkg);
     this.savePackages(list);
     return newPkg.packageId;
   },
   removePackage: function(packageId) {
-    let list = this.loadPackages();
-    list = list.filter(p => p.packageId !== packageId);
-    this.savePackages(list);
+    this.savePackages(this.loadPackages().filter(p => p.packageId !== packageId));
   },
-  // Kiểm tra MSHS có đang trong gói đóng tiền không
+  archivePackages: function(packageIds) {
+    const ids = new Set((packageIds || []).map(String));
+    let count = 0;
+    const list = this.loadPackages().map(pkg => {
+      if (!ids.has(String(pkg.packageId)) || pkg.archived) return pkg;
+      count++;
+      return { ...pkg, archived: true, archivedDate: new Date().toISOString() };
+    });
+    if (count) this.savePackages(list);
+    return count;
+  },
   isPackageActive: function(mshs, monthYear) {
     const info = this.getPackageStatus(mshs, monthYear);
-    return info.active ? { active: true, expiring: !!info.expiring, packageName: info.pkg.packageName || info.pkg.groupName, startMonth: info.pkg.startMonth, endMonth: info.pkg.endMonth || '', discountPercent: info.pkg.discountPercent || 0 } : { active: false };
+    return info.active ? { active: true, expiring: !!info.expiring, overlap: !!info.overlap, packageName: info.pkg.packageName || info.pkg.groupName, startMonth: info.pkg.startMonth, endMonth: info.endMonth, discountPercent: info.pkg.discountPercent || 0 } : { active: false };
   },
-  // Trạng thái gói của 1 HS so với tháng đối soát: active | expiring (hết đúng tháng này) | expired (đã hết từ trước) | upcoming
   getPackageStatus: function(mshs, monthYear) {
-    const packages = this.loadPackages();
-    if (!mshs || !monthYear) return { status: 'none' };
-    const ms = mshs.toUpperCase();
-    const [cy, cm] = String(monthYear).split('-').map(Number);
-    if (!cy || !cm) return { status: 'none' };
-    const cur = cy * 12 + cm;
-    for (const pkg of packages) {
-      if (!pkg.members || !pkg.members.map(m => String(m).toUpperCase()).includes(ms)) continue;
-      if (!pkg.startMonth) continue;
-      const [py, pm] = String(pkg.startMonth).split('-').map(Number);
-      if (!py || !pm) continue;
-      const start = py * 12 + pm;
-      const end = start + (pkg.months || 1) - 1;
-      if (cur >= start && cur <= end) {
-        const last = (end === cur);
-        // Tháng cuối vẫn tính đã đóng, kèm cờ expiring để báo nhắc thu tháng sau
-        return { status: last ? 'expiring' : 'active', active: true, expiring: last, pkg, endMonthIdx: end };
-      }
-      if (cur === end + 1) return { status: 'expired', active: false, justExpired: true, pkg, endMonthIdx: end };
-      if (cur > end + 1) return { status: 'expired', active: false, justExpired: false, pkg, endMonthIdx: end };
+    const cur = this._packageMonthIndex(monthYear);
+    if (!mshs || !cur) return { status: 'none' };
+    const ms = String(mshs).toUpperCase();
+    const matching = this.loadPackages().map(pkg => ({ pkg, period: this._packagePeriod(pkg) })).filter(x => x.period && (x.pkg.members || []).some(m => String(m).toUpperCase() === ms));
+    const active = matching.filter(x => cur >= x.period.start && cur <= x.period.end);
+    if (active.length) {
+      active.sort((a, b) => b.period.start - a.period.start || b.period.end - a.period.end);
+      const chosen = active[0], expiring = chosen.period.end === cur;
+      return { status: active.length > 1 ? 'conflict' : (expiring ? 'expiring' : 'active'), active: true, expiring, overlap: active.length > 1, pkg: chosen.pkg, packages: active.map(x => x.pkg), endMonthIdx: chosen.period.end, endMonth: this._packageMonthString(chosen.period.end) };
     }
+    const expired = matching.filter(x => x.period.end < cur).sort((a, b) => b.period.end - a.period.end)[0];
+    if (expired) return { status: 'expired', active: false, justExpired: expired.period.end === cur - 1, pkg: expired.pkg, endMonthIdx: expired.period.end, endMonth: this._packageMonthString(expired.period.end) };
+    const upcoming = matching.filter(x => x.period.start > cur).sort((a, b) => a.period.start - b.period.start)[0];
+    if (upcoming) return { status: 'upcoming', active: false, pkg: upcoming.pkg, endMonthIdx: upcoming.period.end, endMonth: this._packageMonthString(upcoming.period.end) };
     return { status: 'none' };
   },
-  // Quét TẤT CẢ gói: gói nào hết đúng tháng đối soát / vừa hết tháng trước → nhắc thu HP tháng sau
+  getExpiredPackages: function(monthYear, students, options = {}) {
+    const cur = this._packageMonthIndex(monthYear);
+    if (!cur) return [];
+    const studentMap = new Map((students || []).filter(s => s.mshs).map(s => [String(s.mshs).toUpperCase(), s]));
+    const periods = this.loadPackages().map(pkg => ({ pkg, period: this._packagePeriod(pkg) })).filter(x => x.period);
+    return periods.filter(x => x.period.end < cur && (options.includeArchived !== false || !x.pkg.archived)).map(x => {
+      const members = (x.pkg.members || []).map(mshs => { const student = studentMap.get(String(mshs).toUpperCase()) || {}; return { mshs: String(mshs), fullName: student.fullName || '', className: student.className || '' }; });
+      const renewed = members.some(member => periods.some(other => other.pkg.packageId !== x.pkg.packageId && (other.pkg.members || []).some(m => String(m).toUpperCase() === member.mshs.toUpperCase()) && other.period.start > x.period.end));
+      return { pkg: x.pkg, startMonth: this._packageMonthString(x.period.start), endMonth: this._packageMonthString(x.period.end), members, renewed };
+    }).sort((a, b) => a.endMonth.localeCompare(b.endMonth) || String(a.pkg.packageId).localeCompare(String(b.pkg.packageId)));
+  },
   getExpiringPackages: function(monthYear, students) {
-    const packages = this.loadPackages();
-    if (!monthYear) return [];
-    const [cy, cm] = String(monthYear).split('-').map(Number);
-    const cur = cy * 12 + cm;
-    const nameMap = {};
-    (students || []).forEach(s => { if (s.mshs) nameMap[String(s.mshs).toUpperCase()] = s.fullName || ''; });
-    const out = [];
-    (packages || []).forEach(pkg => {
-      if (!pkg.startMonth) return;
-      const [py, pm] = String(pkg.startMonth).split('-').map(Number);
-      if (!py || !pm) return;
-      const end = (py * 12 + pm) + (pkg.months || 1) - 1;
-      const ey = Math.floor((end - 1) / 12), em = ((end - 1) % 12) + 1;
-      const endStr = `${ey}-${String(em).padStart(2, '0')}`;
-      const ny = Math.floor(end / 12), nm = (end % 12) + 1;
-      const nextStr = `${ny}-${String(nm).padStart(2, '0')}`;
-      const members = (pkg.members || []).map(m => `${m}${nameMap[String(m).toUpperCase()] ? ' (' + nameMap[String(m).toUpperCase()] + ')' : ''}`);
-      if (end === cur) out.push({ pkg, kind: 'expiring', msg: `hết đúng tháng này (${endStr}) → tháng ${nextStr} thu HP bình thường`, members });
-      else if (end === cur - 1) out.push({ pkg, kind: 'expired', msg: `đã hết từ ${endStr} → tháng này (${monthYear}) thu HP bình thường`, members });
+    const cur = this._packageMonthIndex(monthYear);
+    if (!cur) return [];
+    const nameMap = new Map((students || []).filter(s => s.mshs).map(s => [String(s.mshs).toUpperCase(), s.fullName || '']));
+    return this.loadPackages().map(pkg => ({ pkg, period: this._packagePeriod(pkg) })).filter(x => x.period && x.period.end === cur && !x.pkg.archived).map(x => {
+      const endStr = this._packageMonthString(x.period.end), nextStr = this._packageMonthString(x.period.end + 1);
+      const members = (x.pkg.members || []).map(m => `${m}${nameMap.get(String(m).toUpperCase()) ? ' (' + nameMap.get(String(m).toUpperCase()) + ')' : ''}`);
+      return { pkg: x.pkg, kind: 'expiring', msg: `Hết sau tháng này (${endStr}) — tháng ${nextStr} thu HP bình thường`, members };
     });
-    return out;
   },
 
   // DỮ LIỆU THÁNG TRƯỚC

@@ -11,6 +11,8 @@
 - **ĐANG DANG DỞ**: Đang tạm ngưng ở **Phase 5B: Test tổng thể**. (Chưa test thử nghiệm với dữ liệu thật trên trình duyệt).
 - **CẦN LÀM TIẾP THEO**: User mở `index.html` → Nạp 4 file từ thư mục `test_data/` → Chạy đối soát → Cung cấp phản hồi.
 - **26/11/2026 — Đã kiểm tra file thật DS_HOC_SINH nhiều sheet**: app nhận `Ds_HocSinh` ở dòng tiêu đề 3, đủ 196 dòng / 181 MSHS, không thiếu tên-lớp; STK giữ nguyên và báo 1 ô cần kiểm tra. Đã sửa luồng nhãn STK phụ/từ khóa dùng DS tháng hiện tại trước.
+- **27/11/2026 — Đã hoàn thành và kiểm tra trước cập nhật**: STK VTB chung ưu tiên người nhận nêu rõ; sửa gán theo từng giao dịch/tháng (không tạo STK phụ vĩnh viễn); nội dung CK hiện đầy đủ; gói gia hạn xét đúng bất kể thứ tự lưu; có danh sách ẩn gói hết hạn an toàn. Kiểm tra luồng Tổng hợp → Chi tiết → Kế toán → Excel bằng dữ liệu giả: **23/23 test mới PASS**. Bộ kiểm tra cũ còn 3 lỗi vì thiếu file Excel nguồn trong cache, không phải lỗi code mới.
+- **Còn cần sau khi cập nhật bản đang dùng**: nhập 4 file thử trên trình duyệt bằng dữ liệu thật đã được sao lưu, kiểm tra trực quan một giao dịch STK chung và một gói gia hạn; không tự thay tháng đã chốt.
 
 ---
 

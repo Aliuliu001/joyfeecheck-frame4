@@ -4,7 +4,7 @@
 
 window.Matcher = {
   // Khớp giao dịch VietinBank (theo STK)
-  matchVietinBank: function(transactions, students, stkPhuList) {
+  matchVietinBank: function(transactions, students, stkPhuList, monthYear) {
     const matched = [];
     const unmatched = [];
 
@@ -32,11 +32,34 @@ window.Matcher = {
       }
     });
 
-    // Bản đồ MSHS -> Học phí (để chia tiền khi 1 STK có nhiều HS)
+    // Bản đồ MSHS -> Học phí (để chia tiền khi 1 STK có nhiều HS).
+    // Một MSHS có thể có nhiều dòng lớp, vì vậy phải cộng thay vì ghi đè dòng cuối.
     const hpMap = new Map();
     students.forEach(s => {
-      hpMap.set(s.mshs, Number(s.hocPhi) || APP_CONFIG.DEFAULT_HOC_PHI);
+      const mshs = String(s.mshs || '').toUpperCase();
+      if (!mshs) return;
+      hpMap.set(mshs, (hpMap.get(mshs) || 0) + (Number(s.hocPhi) || APP_CONFIG.DEFAULT_HOC_PHI));
     });
+
+    const uniqueMembers = members => [...new Set(members.map(m => String(m || '').toUpperCase()).filter(Boolean))];
+    const exactCodeInText = (text, mshs) => {
+      const escaped = String(mshs).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`(?:^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, 'i').test(String(text || ''));
+    };
+    const explicitRecipients = (tx, members) => {
+      const raw = String(tx.description || tx.explanation || '');
+      const normalized = Utils.normalizeText(raw);
+      const candidates = new Map();
+      uniqueMembers(members).forEach(mshs => {
+        const studentRows = students.filter(s => String(s.mshs || '').toUpperCase() === mshs);
+        const names = [...new Set(studentRows.map(s => Utils.normalizeText(s.fullName || '')).filter(Boolean))];
+        const codeHit = exactCodeInText(raw, mshs);
+        const nameHit = names.some(name => normalized.includes(name));
+        if (codeHit || nameHit) candidates.set(mshs, { codeHit, nameHit });
+      });
+      return candidates;
+    };
+    const transactionId = tx => tx.transactionId || `vtb|${tx.maGD || tx.reference || ''}|${tx.date || ''}|${tx.debitAccount || tx.stkDoiUng || tx.account || ''}|${tx.credit || tx.amount || 0}|${tx.description || tx.explanation || ''}`;
 
     // Hàm chia 1 GD cho nhiều MSHS theo tỉ lệ học phí
     const splitToMembers = (tx, members) => {
@@ -68,10 +91,13 @@ window.Matcher = {
       delete tx.matchSource;
       delete tx.matchNote;
 
-      const txId = `vtb|${tx.date}|${tx.debitAccount || tx.stkDoiUng}|${tx.credit}`;
-      if (manualMatches[txId]) {
-        tx.matchedMSHS = manualMatches[txId];
+      const txId = transactionId(tx);
+      const manual = manualMatches[txId];
+      if (manual && (typeof manual === 'string' || !manual.monthYear || manual.monthYear === monthYear)) {
+        tx.matchedMSHS = typeof manual === 'string' ? manual : manual.mshs;
         tx.matchSource = 'manual';
+        tx.matchNote = 'phan_bo_thu_cong';
+        tx.allocationLocked = true;
         matched.push(tx);
         return;
       }
@@ -80,28 +106,49 @@ window.Matcher = {
 
       // 1. Tìm trong STK chính
       if (normTxSTK && stkChinhMap.has(normTxSTK)) {
-        const members = stkChinhMap.get(normTxSTK);
+        const members = uniqueMembers(stkChinhMap.get(normTxSTK));
         tx.matchSource = 'stk_chinh';
         if (members.length === 1) {
           tx.matchedMSHS = members[0];
           matched.push(tx);
+          found = true;
         } else {
-          // 1 STK chính có nhiều HS -> chia tiền theo tỉ lệ học phí
-          splitToMembers(tx, members);
+          const explicit = explicitRecipients(tx, members);
+          if (explicit.size === 1) {
+            tx.matchedMSHS = [...explicit.keys()][0];
+            tx.matchNote = 'vtb_shared_explicit_recipient';
+            matched.push(tx);
+            found = true;
+          } else if (explicit.size > 1) {
+            tx.matchNote = 'kiem_tra_nguoi_nhan';
+          } else {
+            splitToMembers(tx, members);
+            found = true;
+          }
         }
-        found = true;
       }
       // 2. Tìm trong STK phụ
       else if (normTxSTK && stkPhuMap.has(normTxSTK)) {
-        const members = stkPhuMap.get(normTxSTK);
+        const members = uniqueMembers(stkPhuMap.get(normTxSTK));
         tx.matchSource = 'stk_phu';
         if (members.length === 1) {
           tx.matchedMSHS = members[0];
           matched.push(tx);
+          found = true;
         } else {
-          splitToMembers(tx, members);
+          const explicit = explicitRecipients(tx, members);
+          if (explicit.size === 1) {
+            tx.matchedMSHS = [...explicit.keys()][0];
+            tx.matchNote = 'vtb_shared_explicit_recipient';
+            matched.push(tx);
+            found = true;
+          } else if (explicit.size > 1) {
+            tx.matchNote = 'kiem_tra_nguoi_nhan';
+          } else {
+            splitToMembers(tx, members);
+            found = true;
+          }
         }
-        found = true;
       }
       // 3. Quét nội dung/mô tả giao dịch VietinBank khớp với tên học sinh đầy đủ hoặc mã học sinh
       else {
@@ -324,12 +371,15 @@ window.Matcher = {
         date: tx.date || '',
         amount: tx.credit || 0,
           originalAmount: tx.originalAmount || tx.credit || 0,
-          matchNote: tx.matchNote || '',
+        matchNote: tx.matchNote || '',
+        allocationLocked: !!tx.allocationLocked,
         description: tx.explanation || tx.description || '',
         account: tx.creditAccount || tx.account || tx.stkDoiUng || '',
         tenChuTK: tx.tenTKDoiUng || '',
         _rowNo: tx._rowNo || tx.stt || '',
-        st: tx.st || ''
+        st: tx.st || '',
+        transactionId: tx.transactionId || `vtb|${tx.maGD || tx.reference || ''}|${tx.date || ''}|${tx.debitAccount || tx.stkDoiUng || tx.account || ''}|${tx.credit || tx.amount || 0}|${tx.description || tx.explanation || ''}`,
+        bankReference: tx.maGD || tx.reference || ''
       });
     };
 
@@ -376,12 +426,15 @@ window.Matcher = {
       group.members.forEach(mshs => {
         if (aggregated.has(mshs)) {
           const sums = aggregated.get(mshs);
-          totalVTB += sums.vtb;
-          totalTPB += sums.tpb;
-          // Reset CK amounts for members; we will redistribute it
-          sums.vtb = 0;
-          sums.tpb = 0;
-          sums.total = sums.cash; // Only cash remains before distribution
+          const lockedTx = (sums.txList || []).filter(tx => tx.allocationLocked);
+          const lockedVTB = lockedTx.filter(tx => tx.type === 'vtb').reduce((sum, tx) => sum + tx.amount, 0);
+          const lockedTPB = lockedTx.filter(tx => tx.type === 'tpb').reduce((sum, tx) => sum + tx.amount, 0);
+          totalVTB += sums.vtb - lockedVTB;
+          totalTPB += sums.tpb - lockedTPB;
+          // Keep explicit single-transaction allocations on their chosen student.
+          sums.vtb = lockedVTB;
+          sums.tpb = lockedTPB;
+          sums.total = sums.cash + lockedVTB + lockedTPB;
         }
       });
 
@@ -400,7 +453,8 @@ window.Matcher = {
         // Deduct cash already paid explicitly for this member
         let remainingNeed = reqFee;
         if (aggregated.has(mshs)) {
-          remainingNeed -= aggregated.get(mshs).cash;
+          const existing = aggregated.get(mshs);
+          remainingNeed -= existing.cash + existing.vtb + existing.tpb;
         }
         if (remainingNeed < 0) remainingNeed = 0;
 

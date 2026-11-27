@@ -563,7 +563,9 @@
                 <td class="col-amount" x-text="$formatCurrency(row.chuyenKhoanTPB)"></td>
                 <td class="col-amount" style="font-weight: 700; color: var(--primary);" x-text="$formatCurrency(row.tongDaDong)"></td>
                 <td class="col-amount" style="font-weight: 700; color: #C62828;" x-text="$formatCurrency(row.conThieu || 0)"></td>
-                <td @click="showNguonCKDetail(row)" style="cursor: pointer;" title="Click để xem chi tiết" x-html="getNguonCK(row)"></td>
+                <td style="white-space: nowrap;">
+                  <span @click="showNguonCKDetail(row)" style="cursor: pointer;" title="Xem chi tiết hoặc sửa đúng từng giao dịch VTB" x-html="getNguonCK(row)"></span>
+                </td>
                 <td>
                   <span class="status-badge" :class="getStatusBadge(row.trangThai)" x-text="row.trangThai"></span>
                 </td>
@@ -1338,6 +1340,36 @@
                     <td style="white-space: nowrap;" x-text="pkg.startMonth"></td>
                     <td style="white-space: nowrap;" x-text="pkg.endMonth"></td>
                     <td><button class="btn btn-sm btn-danger" @click="deletePackage(pkg.packageId)" title="Xóa gói">✕</button></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="settings-section" x-show="(expiredPackageData || []).length">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px;">
+            <div>
+              <h4 style="margin: 0;">🗃️ Gói hết hạn</h4>
+              <p style="color: var(--text-secondary); font-size: 13px; margin: 4px 0 0;">Ẩn chỉ làm gọn danh sách đang dùng; dữ liệu vẫn giữ để đối soát tháng cũ.</p>
+            </div>
+            <button class="btn btn-sm btn-outline" :disabled="!(archivePackageIds || []).length" @click="archiveSelectedPackages()">Ẩn gói hết hạn khỏi danh sách đang dùng</button>
+          </div>
+          <div class="table-container compact-table">
+            <table>
+              <thead><tr>
+                <th><input type="checkbox" :checked="(expiredPackageData || []).length && (archivePackageIds || []).length === (expiredPackageData || []).length" @change="toggleAllExpiredPackages($event.target.checked)" title="Chọn tất cả"></th>
+                <th>Tên gói</th><th>Học sinh</th><th>Lớp</th><th>Từ tháng</th><th>Đến tháng</th><th>Trạng thái</th>
+              </tr></thead>
+              <tbody>
+                <template x-for="item in (expiredPackageData || [])" :key="item.pkg.packageId">
+                  <tr>
+                    <td><input type="checkbox" :value="item.pkg.packageId" x-model="archivePackageIds"></td>
+                    <td x-text="item.pkg.packageName || item.pkg.groupName"></td>
+                    <td x-text="item.members.map(m => m.mshs + (m.fullName ? ' — ' + m.fullName : '')).join(', ')"></td>
+                    <td x-text="item.members.map(m => m.className).filter(Boolean).join(', ')"></td>
+                    <td x-text="item.startMonth"></td><td x-text="item.endMonth"></td>
+                    <td x-text="item.renewed ? 'Đã gia hạn' : 'Đã hết hạn'"></td>
                   </tr>
                 </template>
               </tbody>

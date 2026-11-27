@@ -121,6 +121,8 @@ function appComponent() {
     keywordData: [],
     familyGroups: [],
     packageData: [],
+    expiredPackageData: [],
+    archivePackageIds: [],
     stkPhuSearch: '',
     keywordSearch: '',
     // Drag states
@@ -362,7 +364,9 @@ function appComponent() {
         return student.found ? { ...item, tenHS: student.fullName || item.tenHS || '', className: student.className || item.className || '' } : item;
       });
       this.familyGroups = window.Storage.loadFamilyGroups() || [];
-      this.packageData = window.Storage.loadPackages() || [];
+      this.packageData = (window.Storage.loadPackages() || []).filter(pkg => !pkg.archived);
+      this.expiredPackageData = window.Storage.getExpiredPackages ? window.Storage.getExpiredPackages(this.$store.appState.monthYear, this.$store.appState.students || [], { includeArchived: false }) : [];
+      this.archivePackageIds = [];
       this.adjustmentData = window.Storage.loadFeeAdjustments ? (window.Storage.loadFeeAdjustments() || []) : [];
       this.referralData = [...(window.Storage.loadReferrals ? (window.Storage.loadReferrals() || []) : [])].sort((a, b) => {
         if (a.confirmed !== b.confirmed) return a.confirmed ? 1 : -1;
@@ -559,7 +563,7 @@ function appComponent() {
       
       let vtbResult = { matched: [], unmatched: [] };
       if (state.vtbTransactions && state.vtbTransactions.length > 0) {
-        vtbResult = window.Matcher.matchVietinBank(state.vtbTransactions, state.students, stkPhu);
+        vtbResult = window.Matcher.matchVietinBank(state.vtbTransactions, state.students, stkPhu, state.monthYear);
         state.vtbMatched = vtbResult.matched;
         // Lọc GD đã bỏ qua (tránh gán nhầm cho HS khác sau khi bỏ qua)
         state.vtbUnmatched = (vtbResult.unmatched || []).filter(tx => {
@@ -605,9 +609,13 @@ function appComponent() {
       try {
         const exp = window.Storage.getExpiringPackages ? window.Storage.getExpiringPackages(state.monthYear, state.students) : [];
         state.packageAlerts = exp;
-        if (exp && exp.length) {
+        const alertKey = (exp || []).map(e => `${e.pkg.packageId}|${state.monthYear}|${e.kind}`).sort().join(',');
+        if (exp && exp.length && alertKey !== state.packageAlertKey) {
+          state.packageAlertKey = alertKey;
           const lines = exp.map(e => `• ${(e.pkg.packageName || e.pkg.groupName || 'Gói')} (${(e.pkg.members || []).join(', ')}) ${e.msg}`).join('\n');
           setTimeout(() => this.showToast(`⏰ Gói hết hạn:\n${lines}`, 'warning'), 600);
+        } else if (!exp.length) {
+          state.packageAlertKey = '';
         }
       } catch (e) { console.error('package alert error:', e); }
     },
@@ -889,7 +897,8 @@ function appComponent() {
         return;
       }
       
-      let html = `<div style="max-height: 400px; overflow-y: auto;">`;
+      const escapeHtml = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      let html = `<div class="payment-detail-scroll">`;
       html += `<h4 style="margin-bottom: 12px;">💳 Chi tiết thanh toán: ${mshs}</h4>`;
       html += `<table style="width: 100%; font-size: 14px; border-collapse: collapse;">`;
       html += `<thead><tr style="background: var(--bg-main);">`;
@@ -904,9 +913,11 @@ function appComponent() {
       
       paymentData.txList.forEach((tx, idx) => {
         const typeTag = tx.type === 'vtb' ? '🏦 VTB' : (tx.type === 'tpb' ? '🏦 TPBank' : '💵 Tiền mặt');
-        const stk = tx.account || '—';
-        const chuTK = tx.tenChuTK || '—';
-        const desc = (tx.description || '—').substring(0, 80);
+        const stk = escapeHtml(tx.account || '—');
+        const chuTK = escapeHtml(tx.tenChuTK || '—');
+        const desc = escapeHtml(tx.description || '—');
+        const allocationReason = tx.matchNote === 'phan_bo_thu_cong' ? 'Gán thủ công cho giao dịch này' : (tx.matchNote === 'vtb_shared_explicit_recipient' ? 'Người nhận được nêu rõ trong nội dung CK' : '');
+        const reassignButton = tx.type === 'vtb' ? `<button type="button" class="btn btn-xs btn-outline js-reassign-vtb" data-tx-index="${idx}" style="margin-top: 6px;">✏️ Sửa người nhận</button>` : '';
         html += `<tr style="border-bottom: 1px solid var(--border-color);">`;
         html += `<td style="padding: 8px; text-align: center; color: var(--text-secondary);">${tx._rowNo || idx + 1}</td>`;
         html += `<td style="padding: 8px; white-space: nowrap;">${this.$formatDate(tx.date)}</td>`;
@@ -915,7 +926,7 @@ function appComponent() {
         html += `<td style="padding: 8px; text-align: right; font-weight: 600; white-space: nowrap;">${this.$formatCurrency(tx.amount)}${origText}</td>`;
         html += `<td style="padding: 8px; font-family: monospace; font-size: 13px;">${stk}</td>`;
         html += `<td style="padding: 8px; font-size: 13px;">${chuTK}</td>`;
-        html += `<td class="wrap" style="padding: 8px; font-size: 13px; color: var(--text-secondary); max-width: 200px;" title="${tx.description || ''}">${desc}</td>`;
+        html += `<td class="payment-description">${desc}${allocationReason ? `<div class="allocation-reason">${allocationReason}</div>` : ''}${reassignButton}</td>`;
         html += `</tr>`;
       });
       html += `</tbody></table></div>`;
@@ -924,6 +935,20 @@ function appComponent() {
       this.modalBody = html;
       this.modalConfirm = null;
       this.showModal = true;
+      // Nội dung chi tiết dùng x-html, nên gắn thao tác sửa sau khi Alpine đã render modal.
+      setTimeout(() => {
+        document.querySelectorAll('.js-reassign-vtb').forEach(button => {
+          button.addEventListener('click', () => {
+            const detail = paymentData.txList[Number(button.dataset.txIndex)];
+            const original = (this.$store.appState.vtbTransactions || []).find(tx =>
+              window.Storage.vtbTransactionId(tx) === detail.transactionId
+            );
+            if (!original) { this.showToast('⚠️ Không tìm thấy giao dịch gốc để sửa', 'warning'); return; }
+            this.showModal = false;
+            this.openAssignVtb(original);
+          });
+        });
+      }, 0);
     },
 
     getStatusBadge(status) {
@@ -1100,9 +1125,8 @@ function appComponent() {
       if (!found) { this.showToast(`⚠️ Không tìm thấy MSHS ${m} trong DS học sinh`, 'error'); return; }
       const tx = this.assignTx;
       if (this.assignType === 'vtb') {
-        // Gán VTB = lưu mapping STK phụ (STK đối ứng → MSHS), lần sau tự khớp
-        window.Storage.addSTKPhu({ mshs: m, stk: tx.debitAccount || tx.stkDoiUng || '', tenTK: tx.debitAccountName || tx.tenTKDoiUng || '' });
-        this.showToast(`✅ Đã lưu STK → ${m}. Đang chạy lại...`, 'success');
+        window.Storage.addManualAllocation(tx, m, this.$store.appState.monthYear);
+        this.showToast(`✅ Đã gán riêng giao dịch này cho ${m}. Đang chạy lại...`, 'success');
       } else {
         // Gán TPB = lưu keyword (Từ khóa → MSHS), lần sau tự khớp
                   const txId = `tpb|${tx.date || tx.transactionDate}|${tx.description || tx.explanation}|${tx.amount || tx.credit}`;
@@ -1307,15 +1331,13 @@ function appComponent() {
       const students = (this.$store && this.$store.appState && this.$store.appState.students) || [];
       const unknown = members.filter(m => !students.find(s => s.mshs === m));
       if (unknown.length) { this.showToast('⚠️ MSHS không có trong DS học sinh: ' + unknown.join(', ') + ' — kiểm tra lại, dữ liệu đã nhập vẫn giữ nguyên', 'error'); return; }
-      const months = parseInt(this.packageForm.months || '6', 10) || 6;
+      const months = Number(this.packageForm.months);
       const startMonth = (this.packageForm.startMonth || '').trim();
-      if (!/^\d{4}-\d{2}$/.test(startMonth)) { this.showToast('⚠️ Tháng bắt đầu phải dạng YYYY-MM (VD: 2026-08)', 'error'); return; }
+      if (!Number.isInteger(months) || months <= 0) { this.showToast('⚠️ Số tháng phải là số nguyên dương', 'error'); return; }
+      if (!window.Storage._packageMonthIndex || !window.Storage._packageMonthIndex(startMonth)) { this.showToast('⚠️ Tháng bắt đầu phải dạng YYYY-MM hợp lệ (VD: 2026-08)', 'error'); return; }
       const discountPercent = parseFloat(this.packageForm.discountPercent || '0') || 0;
-      const [sy, sm] = startMonth.split('-').map(Number);
-      // Tháng kết thúc = tháng bắt đầu + số tháng - 1 (VD gói 2 tháng từ T9 → hết T10)
-      const endD = new Date(sy, sm - 1 + months - 1);
-      const endMonth = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}`;
-      window.Storage.addPackage({ packageName, members, months, startMonth, endMonth, discountPercent });
+      const packageId = window.Storage.addPackage({ packageName, members, months, startMonth, discountPercent });
+      if (!packageId) { this.showToast('⚠️ Không thể lưu gói: kiểm tra tháng và số tháng', 'error'); return; }
       window.Storage.addHistory && window.Storage.addHistory({ action: 'Thêm gói học phí', detail: `${packageName}: ${members.join(', ')} (${months} tháng, giảm ${discountPercent}%)` });
       this.showPackageModal = false;
       this.loadSettingsUI();
@@ -1329,6 +1351,20 @@ function appComponent() {
       this.loadSettingsUI();
       this.runMatching();
       this.showToast('🗑️ Đã xóa gói', 'success');
+    },
+
+    toggleAllExpiredPackages(checked) {
+      this.archivePackageIds = checked ? (this.expiredPackageData || []).map(item => item.pkg.packageId) : [];
+    },
+
+    archiveSelectedPackages() {
+      const ids = this.archivePackageIds || [];
+      if (!ids.length) { this.showToast('Chọn ít nhất một gói hết hạn để ẩn', 'warning'); return; }
+      if (!confirm(`Ẩn ${ids.length} gói hết hạn khỏi danh sách đang dùng? Lịch sử đối soát các tháng cũ vẫn được giữ lại.`)) return;
+      const count = window.Storage.archivePackages(ids);
+      this.loadSettingsUI();
+      this.runMatching();
+      this.showToast(`✅ Đã ẩn ${count} gói hết hạn; lịch sử vẫn được giữ`, 'success');
     },
 
     // Điều chỉnh HP: mở form modal 1 lần (bỏ prompt hỏi dồn 4 lần)
